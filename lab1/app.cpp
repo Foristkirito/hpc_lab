@@ -2,8 +2,6 @@
 //
 
 #include "stdafx.h"
-#include <omp.h>
-#include <intrin.h>
 
 // background image
 #define BKGBMP_FILENAME "background.bmp"
@@ -41,123 +39,80 @@ void UpdatePositionAndRotation (void)
 
 
 // --------------------------------------------------------------------------
-void Rotate(DWORD *pDst, long DPitch, DWORD *pSrc, long SPitch, long width, long  height, float angle)
+void Rotate (DWORD *pDst, long DPitch, DWORD *pSrc, long SPitch, long width, long  height, float angle)
 {
 	DPitch /= sizeof(DWORD);
 	SPitch /= sizeof(DWORD);
-	float sin_angle = sin(angle);
-	float cos_angle = cos(angle);
 
-	for (int y = -height / 2; y<height / 2; y++)
+	for (int y=-height/2; y<height/2; y++)
 	{
-		float tmp_y_sin = width / 2.0 - y * sin_angle;
-		float tmp_y_cos = height / 2.0 + y * cos_angle;
-		#pragma omp parallel for
-		for (int x = -width / 2; x<width / 2; x++)
+		for (int x=-width/2; x<width/2; x++)
 		{
-			float fSrcX = (float)(x*cos_angle + tmp_y_sin);
-			float fSrcY = (float)(x*sin_angle + tmp_y_cos);
+			float fSrcX = (float)(width /2.0 + x*cos(angle) - y*sin(angle));
+			float fSrcY = (float)(height/2.0 + x*sin(angle) + y*cos(angle));
 
 			long dwSrcX = (long)fSrcX;
 			long dwSrcY = (long)fSrcY;
-
-			if (dwSrcX > 0 && dwSrcY > 0 && dwSrcX < width - 1 && dwSrcY < height - 1)
+			
+			if (dwSrcX > 0 && dwSrcY > 0 && dwSrcX < width-1 && dwSrcY < height-1)
 			{
 				DWORD *pTopLeft, *pTopRight, *pBottomLeft, *pBottomRight;
-				pTopLeft = pSrc + dwSrcY * SPitch + dwSrcX;
-				pTopRight = pTopLeft + 1;
-				pBottomLeft = pTopLeft + SPitch;
-				pBottomRight = pTopLeft + SPitch + 1;
+				pTopLeft		= pSrc + dwSrcY * SPitch + dwSrcX;
+				pTopRight		= pTopLeft + 1;
+				pBottomLeft		= pTopLeft + SPitch;
+				pBottomRight	= pBottomLeft + 1;
 
 				float fx = fSrcX - dwSrcX;
 				float fy = fSrcY - dwSrcY;
-				float fxy = fx * fy;
 
-				DWORD topLeftValue = (*pTopLeft);
-				DWORD topRightValue = (*pTopRight);
-				DWORD bottomLeftValue = (*pBottomLeft);
-				DWORD bottomRightValue = (*pBottomRight);
+				// alpha interpolation
+				DWORD TopLeftAlpha     = (*pTopLeft)    >> 24;
+				DWORD TopRightAlpha    = (*pTopRight)   >> 24;
+				DWORD BottomLeftAlpha  = (*pBottomLeft) >> 24;
+				DWORD BottomRightAlpha = (*pBottomRight)>> 24;
+				float alphaFP = TopLeftAlpha	* (1.0f-fx) * (1.0f-fy) +
+								TopRightAlpha	* fx * (1.0f-fy) +
+								BottomLeftAlpha	* (1.0f-fx) * fy +
+								BottomRightAlpha* fx * fy;
+				DWORD  alpha_value = (DWORD)(alphaFP + 0.5);
 
-				DWORD TopLeftAlpha = topLeftValue >> 24;
-				DWORD TopLeftRed = (topLeftValue >> 16) & 0xff;
-				DWORD TopLeftGreen = (topLeftValue >> 8) & 0xff;
-				DWORD TopLeftBlue = topLeftValue & 0xff;
+				// red interpolation
+				DWORD TopLeftRed     = ((*pTopLeft)    >> 16) & 0xff;
+				DWORD TopRightRed    = ((*pTopRight)   >> 16) & 0xff;
+				DWORD BottomLeftRed  = ((*pBottomLeft) >> 16) & 0xff;
+				DWORD BottomRightRed = ((*pBottomRight)>> 16) & 0xff;
+				float redFP =	TopLeftRed		* (1.0f-fx) * (1.0f-fy) +
+								TopRightRed		* fx * (1.0f-fy) +
+								BottomLeftRed	* (1.0f-fx) * fy +
+								BottomRightRed	* fx * fy;
+				DWORD  red_value = (DWORD)(redFP + 0.5);
+				
+				// green interpolation
+				DWORD TopLeftGreen     = ((*pTopLeft)    >> 8) & 0xff;
+				DWORD TopRightGreen    = ((*pTopRight)   >> 8) & 0xff;
+				DWORD BottomLeftGreen  = ((*pBottomLeft) >> 8) & 0xff;
+				DWORD BottomRightGreen = ((*pBottomRight)>> 8) & 0xff;
+				float greenFP = TopLeftGreen	  * (1.0f-fx) * (1.0f-fy) +  
+								 TopRightGreen	  * fx * (1.0f-fy) +         
+								 BottomLeftGreen  * (1.0f-fx) * fy +         
+								 BottomRightGreen * fx * fy;                 
+				DWORD  green_value = (DWORD)(greenFP + 0.5);
 
-				//top right
+				// blue interpolation
+				DWORD TopLeftBlue     = *pTopLeft & 0xff;
+				DWORD TopRightBlue    = *pTopRight & 0xff;
+				DWORD BottomLeftBlue  = *pBottomLeft & 0xff;
+				DWORD BottomRightBlue = *pBottomRight & 0xff;
+				float blueFP = TopLeftBlue		* (1.0f-fx) * (1.0f-fy) +  
+							   TopRightBlue		* fx * (1.0f-fy) +         
+							   BottomLeftBlue	* (1.0f-fx) * fy +         
+							   BottomRightBlue	* fx * fy;                 
+				DWORD  blue_value = (DWORD)(blueFP + 0.5);
 
-				DWORD TopRightAlpha = topRightValue >> 24;
-				DWORD TopRightRed = (topRightValue >> 16) & 0xff;
-				DWORD TopRightGreen = (topRightValue >> 8) & 0xff;
-				DWORD TopRightBlue = topRightValue & 0xff;
-
-
-				//bottom left
-
-				DWORD BottomLeftAlpha = bottomLeftValue >> 24;
-				DWORD BottomLeftRed = (bottomLeftValue >> 16) & 0xff;
-				DWORD BottomLeftGreen = (bottomLeftValue >> 8) & 0xff;
-				DWORD BottomLeftBlue = bottomLeftValue & 0xff;
-
-
-				//bottom right
-
-				DWORD BottomRightAlpha = bottomRightValue >> 24;
-				DWORD BottomRightRed = (bottomRightValue >> 16) & 0xff;
-				DWORD BottomRightGreen = (bottomRightValue >> 8) & 0xff;
-				DWORD BottomRightBlue = bottomRightValue & 0xff;
-
-
-				float tmp_1 = 1.0f - fx - fy + fxy;
-				float tmp_2 = fx - fxy;
-				float tmp_3 = fy - fxy;
-
-				// 使用向量化
-
-				__m128 tmp;
-				__m128 alphaV;
-				__m128 redV;
-				__m128 greenV;
-				__m128 blueV;
-				tmp = _mm_set_ps(tmp_1, tmp_2, tmp_3, fxy);
-				alphaV = _mm_set_ps(TopLeftAlpha, TopRightAlpha, BottomLeftAlpha, BottomRightAlpha);
-				redV = _mm_set_ps(TopLeftRed, TopRightRed, BottomLeftRed, BottomRightRed);
-				greenV = _mm_set_ps(TopLeftGreen, TopRightGreen, BottomLeftGreen, BottomRightGreen);
-				blueV = _mm_set_ps(TopLeftBlue, TopRightBlue, BottomLeftBlue, BottomRightBlue);
-				__m128 lastSum = _mm_set_ps(0.5f, 0.5f, 0.5f, 0.5f);
-				__m128 tmpAlpha = _mm_mul_ps(alphaV, tmp);
-				tmpAlpha = _mm_hadd_ps(tmpAlpha, tmpAlpha);
-				tmpAlpha = _mm_hadd_ps(tmpAlpha, tmpAlpha);
-				tmpAlpha = _mm_add_ps(tmpAlpha, lastSum);
-				int alpha_value = (int)(tmpAlpha.m128_f32[0]);
-				__m128 tmpRed = _mm_mul_ps(redV, tmp);
-				tmpRed = _mm_hadd_ps(tmpRed, tmpRed);
-				tmpRed = _mm_hadd_ps(tmpRed, tmpRed);
-				tmpRed = _mm_add_ps(tmpRed, lastSum);
-				int red_value = (int)(tmpRed.m128_f32[0]);
-
-				__m128 tmpGreen = _mm_mul_ps(greenV, tmp);
-				tmpGreen = _mm_hadd_ps(tmpGreen, tmpGreen);
-				tmpGreen = _mm_hadd_ps(tmpGreen, tmpGreen);
-				tmpGreen = _mm_add_ps(tmpGreen, lastSum);
-				int green_value = (int)(tmpGreen.m128_f32[0]);
-
-				__m128 tmpBlue = _mm_mul_ps(blueV, tmp);
-				tmpBlue = _mm_hadd_ps(tmpBlue, tmpBlue);
-				tmpBlue = _mm_hadd_ps(tmpBlue, tmpBlue);
-				tmpBlue = _mm_add_ps(tmpBlue, lastSum);
-				int blue_value = (int)(tmpBlue.m128_f32[0]);
-
-
-
-
-
-
-
-				pDst[x + width / 2] = (alpha_value << 24) | (red_value << 16) |
-					(green_value << 8) | (blue_value);
-			}
-			else {
-				pDst[x + width / 2] = 0;
+				pDst[x+width/2] = (alpha_value << 24) + (red_value << 16) + 
+								  (green_value << 8)  + (blue_value);
+			} else {
+				pDst[x+width/2] = 0;
 			}
 		}
 		pDst += DPitch;
@@ -168,10 +123,9 @@ void AlphaBlend32to32(DWORD *pDst, long dPitch,
 				DWORD *pSrc, long sPitch,
 				DWORD width, DWORD height)
 {
-	for (int row=0; row < height; row++)
+	for (DWORD row=0; row < height; row++)
 	{
-		#pragma omp parallel for
-		for (int col=0; col < width; col++)
+		for (DWORD col=0; col < width; col++)
 		{
 			DWORD sColor = pSrc[col];
 			DWORD sAlpha = sColor >> 24;
@@ -186,22 +140,22 @@ void AlphaBlend32to32(DWORD *pDst, long dPitch,
 
 					DWORD sBlue = sColor & 0xff;
 					DWORD dBlue = dColor & 0xff;
-					DWORD Blue  = (sBlue * sAlpha + dBlue * dAlpha) >> 8;
+					DWORD Blue  = (sBlue * sAlpha + dBlue * dAlpha) / 256;
 
 					DWORD sGreen = (sColor >> 8) & 0xff;
 					DWORD dGreen = (dColor >> 8) & 0xff;
-					DWORD Green  = (sGreen * sAlpha + dGreen * dAlpha) >> 8;
+					DWORD Green  = (sGreen * sAlpha + dGreen * dAlpha) / 256;
 
 					DWORD sRed = (sColor >> 16) & 0xff;
-					DWORD dRed = (dColor >> 16) & 0xff;
-					DWORD Red  = (sRed * sAlpha + dRed * dAlpha) >> 8;
+					DWORD dRed = (sColor >> 16) & 0xff;
+					DWORD Red  = (sRed * sAlpha + dRed * dAlpha) / 256;
 
 					pDst[col] = (Red << 16) + (Green << 8) + Blue;
 				}
 			}
 		}
-		pSrc += sPitch >> 2;
-		pDst += dPitch >> 2;
+		pSrc += sPitch / 4;
+		pDst += dPitch / 4;
 	}
 }
 

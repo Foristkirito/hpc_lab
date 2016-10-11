@@ -46,10 +46,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 		return 0;
 
 	MSG msg;
-	int count = 0;
 	while (1)
 	{         
-		count++;
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
 			if (msg.message == WM_QUIT)
@@ -59,9 +57,6 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         }
 		else
 			AppIdle(hWnd);
-		if (count == 3500) {
-			break;
-		}
     }
 
 	AppTerm();
