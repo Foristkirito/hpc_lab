@@ -8,4 +8,5 @@ The official introduction of the class is below:
 
 #### You can contact me using:
 - Email: xiaxin0202@foxmail.com
+- WechatID: xiaxin0202
 
