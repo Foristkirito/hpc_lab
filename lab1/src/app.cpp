@@ -162,10 +162,10 @@ void AlphaBlend32to32(DWORD *pDst, long dPitch,
 				DWORD *pSrc, long sPitch,
 				DWORD width, DWORD height)
 {
-	for (int row=0; row < height; row++)
+	for (DWORD row=0; row < height; row++)
 	{
-		#pragma omp parallel for
-		for (int col=0; col < width; col++)
+
+		for (DWORD col=0; col < width; col++)
 		{
 			DWORD sColor = pSrc[col];
 			DWORD sAlpha = sColor >> 24;
