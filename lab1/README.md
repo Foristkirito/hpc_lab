@@ -1,4 +1,4 @@
-# Lab1: Optimize the Imgae Rotating Program
+# Lab1: Optimize the image Rotating Program
 
 The purpose of this repo is to optimize the image rotating program in Visual C++.
 
@@ -202,6 +202,6 @@ I'm a newer master student. Any advice and suggestion are welcome!
 
 ## <a name="contact"></a> Contact
 
-You can contact me using fowllowing methods:
+You can contact me using following methods:
 - Email: xiaxin0202@foxmail.com
 - WechatID: xiaxin0202
