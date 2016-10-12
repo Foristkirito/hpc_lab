@@ -1,4 +1,4 @@
-# Lab1: Optimize the image Rotating Program
+# Lab1: Optimize the Image Rotating Program
 
 The purpose of this repo is to optimize the image rotating program in Visual C++.
 
