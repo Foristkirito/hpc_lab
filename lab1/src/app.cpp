@@ -147,12 +147,6 @@ void Rotate(DWORD *pDst, long DPitch, DWORD *pSrc, long SPitch, long width, long
 				tmpBlue = _mm_add_ps(tmpBlue, lastSum);
 				int blue_value = (int)(tmpBlue.m128_f32[0]);
 
-
-
-
-
-
-
 				pDst[x + width / 2] = (alpha_value << 24) | (red_value << 16) |
 					(green_value << 8) | (blue_value);
 			}
