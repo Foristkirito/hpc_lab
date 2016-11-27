@@ -21,11 +21,10 @@ void get_partition(int nx, int ny, int nz, int nodes, int *x_par, int *y_par, in
     int tmp_zp;
     int node_numbers = nodes;
     double mem_baseline = (ll)MNRATIO * (ll)nx * (ll)ny * (ll)nz * alpha;
-    int avg_round = 10;
     //printf("memory access baseline : %lf \n", mem_baseline);
     for (; node_numbers > 0; node_numbers--) {
         ll mini_network = -1;
-        ll network_bias = (ll)nx * (ll)ny * (ll)nz / avg_round;
+        ll network_bias = (ll)nx * (ll)ny * (ll)nz / steps;
         for (tmp_xp = 1; tmp_xp <= node_numbers; tmp_xp++) {
             if (node_numbers % tmp_xp == 0) {
                 int remain_x = node_numbers / tmp_xp;
