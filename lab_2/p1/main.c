@@ -354,15 +354,12 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int sub_s;
             for (sub_s = 0; sub_s < 6; sub_s++){
                 if (node_rank[sub_s] >= 0){
-                    printf("receive size %d \n", node_dsize[sub_s]);
+                    //printf("receive size %d \n", node_dsize[sub_s]);
                     MPI_Irecv((receive_buffer + buffer_offset[sub_s]), node_dsize[sub_s], MPI_DOUBLE, node_rank[sub_s], (sub_s + 1) * 10, MPI_COMM_WORLD, &recv_request[sub_s]);
                 }
             }
         }
-        if (myrank == 0){
-            printf("o_A[0][0][100] = %.17g \n", cube_blockA[100]);
-        }
-        printf("begin to cal phase_1! \n");
+        //printf("begin to cal phase_1! \n");
         for (i = 0; i < nx; i++){
             ll tmp_i = i * size_yz;
             for (j = 0; j < ny; j++){
@@ -389,28 +386,25 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
         if (s != 0){
-            printf("begin to wait receive! \n");
+            //printf("begin to wait receive! \n");
             //sleep(60000);
             //ensure all the edge needed has been received
             int sub_s;
             MPI_Status status;
             for (sub_s = 0; sub_s < 6; sub_s++){
                 if (node_rank[sub_s] >= 0){
-                    printf("waite receive %d \n", node_rank[sub_s]);
+                    //printf("waite receive %d \n", node_rank[sub_s]);
                     MPI_Wait(&recv_request[sub_s], &status);
 
                 }
             }
         }
-        printf("begin to cal phase_2! \n");
+       // printf("begin to cal phase_2! \n");
         // begin to cal the edge
         //side 0
         if (node_rank[0] >= 0){
-            printf("phase 2 cal side 0\n");
+            //printf("phase 2 cal side 0\n");
             int count = 0;
             double *start_index = (receive_buffer + buffer_offset[0]);
             i = 0;
@@ -421,9 +415,6 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     int cube_index = tmp_cube_j + k;
                     double pre = cube_blockB[cube_index];
                     cube_blockB[cube_index] += 0.1 * start_index[count];
-                    if (count == TESTN){
-                        printf("pre_cube : %lf; post_cube: %lf , start_index[%d] : %lf\n", pre, cube_blockB[cube_index], TESTN, start_index[count]);
-                    }
                     count++;
                 }
             }
@@ -438,17 +429,14 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
 
         //side 1
         if (node_rank[1] >= 0){
 
-            printf("phase 2 cal side 1\n");
+            //printf("phase 2 cal side 1\n");
             int count = 0;
             double *start_index = (receive_buffer + buffer_offset[1]);
-            printf("receive_buffer[buffer_set[1]] : %lf \n", start_index[0]);
+            //printf("receive_buffer[buffer_set[1]] : %lf \n", start_index[0]);
             j = ny - 1;
             int tmp_cube_j = j * nz;
             for (i = 0; i < nx; i++){
@@ -458,9 +446,6 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     //printf("start_index[count] : %lf\n", start_index[count]);
                     double pre = cube_blockB[cube_index];
                     cube_blockB[cube_index] = pre + 0.1 * start_index[count];
-                    if (count == TESTN){
-                        printf("pre_cube : %lf; post_cube: %lf , start_index[%d] : %lf\n", pre, cube_blockB[cube_index], TESTN, start_index[count]);
-                    }
                     count++;
                 }
             }
@@ -476,13 +461,10 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
 
         //side 2
         if (node_rank[2] >= 0){
-            printf("phase 2 cal side 2\n");
+            //printf("phase 2 cal side 2\n");
             int count = 0;
             double *start_index = (receive_buffer + buffer_offset[2]);
             i = nx - 1;
@@ -493,9 +475,6 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     int cube_index = tmp_cube_j + k;
                     double pre = cube_blockB[cube_index];
                     cube_blockB[cube_index] += 0.1 * start_index[count];
-                    if (count == TESTN){
-                        printf("pre_cube : %lf; post_cube: %lf , start_index[%d] : %lf\n", pre, cube_blockB[cube_index], TESTN, start_index[count]);
-                    }
                     count++;
                 }
             }
@@ -510,13 +489,10 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
         //side 3
         if (node_rank[3] >= 0){
 
-            printf("phase 2 cal side 3\n");
+            //printf("phase 2 cal side 3\n");
             int count = 0;
             double *start_index = (receive_buffer + buffer_offset[3]);
             j = 0;
@@ -528,9 +504,6 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     double pre = cube_blockB[cube_index];
                     cube_blockB[cube_index] = pre + 0.1 * start_index[count];
                     //printf("pre_cube : %lf; post_cube: %lf \n", pre, cube_blockB[cube_index]);
-                    if (count == TESTN){
-                        printf("pre_cube : %lf; post_cube: %lf , start_index[%d] : %lf\n", pre, cube_blockB[cube_index], TESTN, start_index[count]);
-                    }
                     count++;
                 }
             }
@@ -548,12 +521,9 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             }
         }
 
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
         //side 4
         if (node_rank[4] >= 0){
-            printf("phase 2 cal side 4\n");
+            //printf("phase 2 cal side 4\n");
             int count = 0;
             double *start_index = (receive_buffer + buffer_offset[4]);
             k = 0;
@@ -577,12 +547,9 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
         //side 5
         if (node_rank[5] >= 0){
-            printf("phase 2 cal side 5\n");
+            //printf("phase 2 cal side 5\n");
             int count = 0;
             double *start_index = (receive_buffer + buffer_offset[5]);
             k = nz - 1;
@@ -606,12 +573,9 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
         //check last send complete
         if (s != 0){
-            printf("begin to wait last send done! \n");
+            //printf("begin to wait last send done! \n");
             int sub_s;
             MPI_Status status;
             for (sub_s = 0; sub_s < 6; sub_s++){
@@ -622,7 +586,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         }
         //write data to send buffer and send
         //side 0
-        printf("begin to send data! \n");
+        //printf("begin to send data! \n");
         //printf("-------------side 0-------------------\n");
         if (node_rank[0] >= 0){
             //printf("cal side 0! \n");
@@ -639,7 +603,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
             if (s != steps - 1){
-                printf("send side 0! %d data to send \n", node_dsize[0]);
+                //printf("send side 0! %d data to send \n", node_dsize[0]);
                 //send
                 MPI_Isend(start_index, node_dsize[0], MPI_DOUBLE, node_rank[0], (hash_map[0] + 1) * 10, MPI_COMM_WORLD, &send_request[0]);
             }
@@ -663,7 +627,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             }
             if (s != steps - 1){
                 //send
-                printf("send side 1! \n");
+                //printf("send side 1! \n");
                 MPI_Isend(start_index, node_dsize[1], MPI_DOUBLE, node_rank[1], (hash_map[1] + 1) * 10, MPI_COMM_WORLD, &send_request[1]);
             }
 
@@ -686,7 +650,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
             if (s != steps - 1){
-                printf("send side 2! %d to send! \n", node_dsize[2]);
+                //printf("send side 2! %d to send! \n", node_dsize[2]);
                 //send
                 MPI_Isend(start_index, node_dsize[2], MPI_DOUBLE, node_rank[2], (hash_map[2] + 1) * 10, MPI_COMM_WORLD, &send_request[2]);
             }
@@ -710,7 +674,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
             if (s != steps - 1){
-                printf("send side 3! \n");
+                //printf("send side 3! \n");
                 //send
                 MPI_Isend(start_index, node_dsize[3], MPI_DOUBLE, node_rank[3], (hash_map[3] + 1) * 10, MPI_COMM_WORLD, &send_request[3]);
             }
@@ -733,12 +697,12 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 //printf("cal side 4, i : %d \n", i);
             }
             if (s != steps - 1){
-                printf("send side 4! \n");
+                //printf("send side 4! \n");
                 //send
                 MPI_Isend(start_index, node_dsize[4], MPI_DOUBLE, node_rank[4], (hash_map[4] + 1) * 10, MPI_COMM_WORLD, &send_request[4]);
             }
         }
-        printf("-------------side 5-------------------\n");
+        //printf("-------------side 5-------------------\n");
         //side 5
         if (node_rank[5] >= 0) {
             int count = 0;
@@ -754,20 +718,14 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
             if (s != steps - 1){
-                printf("send side 5! \n");
+                //printf("send side 5! \n");
                 //send
                 MPI_Isend(start_index, node_dsize[5], MPI_DOUBLE, node_rank[5], (hash_map[5] + 1) * 10, MPI_COMM_WORLD, &send_request[5]);
             }
         }
-        printf("One turn done! \n");
+        //printf("One turn done! \n");
         double *tmp = NULL;
-        if (myrank == 0){
-            printf("B[0][0][100] = %.17g \n", cube_blockB[100]);
-        }
         tmp = cube_blockA, cube_blockA = cube_blockB, cube_blockB = tmp;
-        if (myrank == 0){
-            printf("A[0][0][100] = %.17g \n", cube_blockA[100]);
-        }
 
     }
     free(send_buffer);
@@ -793,12 +751,12 @@ void gather_data(Info info, double *A, int NX, int NY, int NZ){
         for (j = 0; j < y_par; j++){
             for (k = 0; k < z_par; k++){
                 int t_node = i * y_par * z_par + j * z_par + k;
-                printf("target node %d \n", t_node);
+                //printf("target node %d \n", t_node);
                 if (t_node != 0){
                     //use mpi to receive data
                     MPI_Status m_status;
                     MPI_Recv(get_buffer, buffer_size, MPI_DOUBLE, t_node, t_node, MPI_COMM_WORLD, &m_status);
-                    printf("data geted!   begin to write buffer \n");
+                    //printf("data geted!   begin to write buffer \n");
                     int offset_x = i * interval_x;
                     int end_x = min(offset_x + interval_x, NX);
                     int offset_y = j * interval_y;
@@ -886,19 +844,6 @@ int main(int argc, char **argv) {
     }
     if (myrank == 0){
         gather_data(info, A, NX, NY, NZ);
-        /*
-        int i, j, k;
-        for (i = 0; i < NX; i++){
-            for (j = 0; j < NY; j++){
-                for (k = 0; k < NZ; k++){
-                    ll index_A = i * NY * NZ + j * NZ + k;
-                    printf("A[%d][%d][%d] = %.17g\n", i , j, k, A[index_A]);
-                }
-            }
-        }
-         */
-
-
         printf("rank 0 gather data done!\n");
     } else {
         if (myrank < total_nodes){

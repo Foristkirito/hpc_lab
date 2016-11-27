@@ -31,11 +31,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf>
-      <file leaf-file-name="main.c" pinned="false" current-in-tab="false">
+      <file leaf-file-name="main.c" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/p1/main.c">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="-18.222221">
-              <caret line="873" column="14" selection-start-line="873" selection-start-column="14" selection-end-line="873" selection-end-column="14" />
+            <state vertical-scroll-proportion="0.44779333">
+              <caret line="704" column="10" selection-start-line="704" selection-start-column="10" selection-end-line="704" selection-end-column="10" />
               <folding>
                 <element signature="e#896#1062#0" expanded="false" />
                 <element signature="e#4794#9891#0" expanded="false" />
@@ -74,11 +74,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="submit.sh" pinned="false" current-in-tab="true">
+      <file leaf-file-name="submit.sh" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/p1/submit.sh">
           <provider selected="true" editor-type-id="text-editor">
-            <state vertical-scroll-proportion="0.2454252">
-              <caret line="12" column="13" selection-start-line="12" selection-start-column="13" selection-end-line="12" selection-end-column="13" />
+            <state vertical-scroll-proportion="-8.444445">
+              <caret line="12" column="28" selection-start-line="12" selection-start-column="28" selection-end-line="12" selection-end-column="28" />
               <folding />
             </state>
           </provider>
@@ -106,8 +106,8 @@
         <option value="$PROJECT_DIR$/p1/engine/test/Makefile" />
         <option value="$PROJECT_DIR$/p1/Makefile" />
         <option value="$PROJECT_DIR$/p1/engine/proj_engine.h" />
-        <option value="$PROJECT_DIR$/p1/main.c" />
         <option value="$PROJECT_DIR$/p1/submit.sh" />
+        <option value="$PROJECT_DIR$/p1/main.c" />
       </list>
     </option>
   </component>
@@ -359,22 +359,22 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/p1/submit.sh">
+      <provider selected="true" editor-type-id="text-editor">
+        <state vertical-scroll-proportion="-8.444445">
+          <caret line="12" column="28" selection-start-line="12" selection-start-column="28" selection-end-line="12" selection-end-column="28" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/p1/main.c">
       <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="-18.222221">
-          <caret line="873" column="14" selection-start-line="873" selection-start-column="14" selection-end-line="873" selection-end-column="14" />
+        <state vertical-scroll-proportion="0.44779333">
+          <caret line="704" column="10" selection-start-line="704" selection-start-column="10" selection-end-line="704" selection-end-column="10" />
           <folding>
             <element signature="e#896#1062#0" expanded="false" />
             <element signature="e#4794#9891#0" expanded="false" />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/p1/submit.sh">
-      <provider selected="true" editor-type-id="text-editor">
-        <state vertical-scroll-proportion="0.2454252">
-          <caret line="12" column="13" selection-start-line="12" selection-start-column="13" selection-end-line="12" selection-end-column="13" />
-          <folding />
         </state>
       </provider>
     </entry>
