@@ -9,7 +9,7 @@
 #define MNRATIO 250
 #define MAXP
 typedef long long ll;
-double alpha = 0.0006; // to control the ratio of memory access and network communication
+double alpha = 0.01; // to control the ratio of memory access and network communication
 
 //return the partion of every side, 1 implies no partition
 void get_partition(int nx, int ny, int nz, int nodes, int *x_par, int *y_par, int *z_par, int steps){

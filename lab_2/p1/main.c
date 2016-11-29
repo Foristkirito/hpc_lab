@@ -349,19 +349,128 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
     int ny = info.ny;
     int nz = info.nz;
     for (s = 0; s < steps; s++) {
-        //printf("step %d \n", s);
-        if (s != 0){
-            //before cal get the data asyn
-
-            int sub_s;
-            for (sub_s = 0; sub_s < 6; sub_s++){
-                if (node_rank[sub_s] >= 0){
-                    //printf("receive size %d \n", node_dsize[sub_s]);
-                    MPI_Irecv((receive_buffer + buffer_offset[sub_s]), node_dsize[sub_s], MPI_DOUBLE, node_rank[sub_s], (sub_s + 1) * 10, MPI_COMM_WORLD, &recv_request[sub_s]);
+        //write data to send buffer and send
+        //side 0
+        //printf("begin to send data! \n");
+        //printf("-------------side 0-------------------\n");
+        if (node_rank[0] >= 0){
+            //printf("cal side 0! \n");
+            int count = 0;
+            double *start_index = (send_buffer + buffer_offset[0]);
+            i = 0;
+            int tmp_cube_i = i * size_yz;
+            for (j = 0; j < ny; j++){
+                int tmp_cube_j = tmp_cube_i + j * nz;
+                for (k = 0; k < nz; k++){
+                    int cube_index = tmp_cube_j + k;
+                    start_index[count] = cube_blockA[cube_index];
+                    count++;
                 }
             }
+            MPI_Isend(start_index, node_dsize[0], MPI_DOUBLE, node_rank[0], (hash_map[0] + 1) * 10, MPI_COMM_WORLD, &send_request[0]);
+
         }
-        //printf("begin to cal phase_1! \n");
+        // side 1
+        //printf("-------------side 1-------------------\n");
+        if (node_rank[1] >= 0){
+            //printf("cal side 1! \n");
+            int count = 0;
+            double *start_index = (send_buffer + buffer_offset[1]);
+            j = ny - 1;
+            int tmp_cube_j = j * nz;
+            for (i = 0; i < nx; i++){
+                int tmp_cube_i = tmp_cube_j + i * size_yz;
+                for (k = 0; k < nz; k++){
+                    int cube_index = tmp_cube_i + k;
+                    start_index[count] = cube_blockA[cube_index];
+                    count++;
+                }
+            }
+            MPI_Isend(start_index, node_dsize[1], MPI_DOUBLE, node_rank[1], (hash_map[1] + 1) * 10, MPI_COMM_WORLD, &send_request[1]);
+
+        }
+
+        //side 2
+        //printf("-------------side 2-------------------\n");
+        if (node_rank[2] >= 0){
+            //printf("cal side 2! \n");
+            int count = 0;
+            double *start_index = (send_buffer + buffer_offset[2]);
+            i = nx - 1;
+            int tmp_cube_i = i * size_yz;
+            for (j = 0; j < ny; j++){
+                int tmp_cube_j = tmp_cube_i + j * nz;
+                for (k = 0; k < nz; k++){
+                    int cube_index = tmp_cube_j + k;
+                    start_index[count] = cube_blockA[cube_index];
+                    count++;
+                }
+            }
+            MPI_Isend(start_index, node_dsize[2], MPI_DOUBLE, node_rank[2], (hash_map[2] + 1) * 10, MPI_COMM_WORLD, &send_request[2]);
+
+        }
+
+        //side 3
+        //printf("-------------side 3-------------------\n");
+        if (node_rank[3] >= 0){
+            //printf("cal side 3! \n");
+            int count = 0;
+            double *start_index = (send_buffer + buffer_offset[3]);
+            j = 0;
+            int tmp_cube_j = j * nz;
+            for (i = 0; i < nx; i++){
+                int tmp_cube_i = tmp_cube_j + i * size_yz;
+                for (k = 0; k < nz; k++){
+                    int cube_index = tmp_cube_i + k;
+                    start_index[count] = cube_blockA[cube_index];
+                    count++;
+                }
+            }
+            MPI_Isend(start_index, node_dsize[3], MPI_DOUBLE, node_rank[3], (hash_map[3] + 1) * 10, MPI_COMM_WORLD, &send_request[3]);
+        }
+        //printf("-------------side 4-------------------\n");
+        //side 4
+        if (node_rank[4] >= 0){
+            int count = 0;
+            double *start_index = (send_buffer + buffer_offset[4]);
+            k = 0;
+            int tmp_cube_k = k;
+            //printf("cal side 4! \n");
+            for (i = 0; i < nx; i++){
+                int tmp_cube_i = tmp_cube_k + i * size_yz;
+                for (j = 0; j < ny; j++){
+                    int cube_index = tmp_cube_i + j * nz;
+                    start_index[count] = cube_blockA[cube_index];
+                    count++;
+                }
+                //printf("cal side 4, i : %d \n", i);
+            }
+            MPI_Isend(start_index, node_dsize[4], MPI_DOUBLE, node_rank[4], (hash_map[4] + 1) * 10, MPI_COMM_WORLD, &send_request[4]);
+        }
+        //printf("-------------side 5-------------------\n");
+        //side 5
+        if (node_rank[5] >= 0) {
+            int count = 0;
+            double *start_index = (double *)(send_buffer + buffer_offset[5]);
+            k = nz - 1;
+            int tmp_cube_k = k;
+            for (i = 0; i < nx; i++) {
+                int tmp_cube_i = tmp_cube_k + i * size_yz;
+                for (j = 0; j < ny; j++) {
+                    int cube_index = tmp_cube_i + j * nz;
+                    start_index[count] = cube_blockA[cube_index];
+                    count++;
+                }
+            }
+            MPI_Isend(start_index, node_dsize[5], MPI_DOUBLE, node_rank[5], (hash_map[5] + 1) * 10, MPI_COMM_WORLD, &send_request[5]);
+        }
+        // gather side data asyn
+        int sub_s;
+        for (sub_s = 0; sub_s < 6; sub_s++){
+            if (node_rank[sub_s] >= 0){
+                MPI_Irecv((receive_buffer + buffer_offset[sub_s]), node_dsize[sub_s], MPI_DOUBLE, node_rank[sub_s], (sub_s + 1) * 10, MPI_COMM_WORLD, &recv_request[sub_s]);
+            }
+        }
         for (i = 0; i < nx; i++){
             ll tmp_i = i * size_yz;
             for (j = 0; j < ny; j++){
@@ -388,21 +497,15 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
-        if (s != 0){
-            //printf("begin to wait receive! \n");
-            //sleep(60000);
-            //ensure all the edge needed has been received
-            int sub_s;
-            MPI_Status status;
-            for (sub_s = 0; sub_s < 6; sub_s++){
-                if (node_rank[sub_s] >= 0){
-                    //printf("waite receive %d \n", node_rank[sub_s]);
-                    MPI_Wait(&recv_request[sub_s], &status);
+        //waite data to be received
+        MPI_Status status;
+        for (sub_s = 0; sub_s < 6; sub_s++){
+            if (node_rank[sub_s] >= 0){
+                //printf("waite receive %d \n", node_rank[sub_s]);
+                MPI_Wait(&recv_request[sub_s], &status);
 
-                }
             }
         }
-       // printf("begin to cal phase_2! \n");
         // begin to cal the edge
         //side 0
         if (node_rank[0] >= 0){
@@ -509,8 +612,6 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     count++;
                 }
             }
-
-
         } else {
             j = 0;
             int tmp_cube_j = j * nz;
@@ -576,156 +677,11 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             }
         }
         //check last send complete
-        if (s != 0){
-            //printf("begin to wait last send done! \n");
-            int sub_s;
-            MPI_Status status;
-            for (sub_s = 0; sub_s < 6; sub_s++){
-                if (node_rank[sub_s] >= 0){
-                    MPI_Wait(&send_request[sub_s], &status);
-                }
+        for (sub_s = 0; sub_s < 6; sub_s++){
+            if (node_rank[sub_s] >= 0){
+                MPI_Wait(&send_request[sub_s], &status);
             }
         }
-        //write data to send buffer and send
-        //side 0
-        //printf("begin to send data! \n");
-        //printf("-------------side 0-------------------\n");
-        if (node_rank[0] >= 0){
-            //printf("cal side 0! \n");
-            int count = 0;
-            double *start_index = (send_buffer + buffer_offset[0]);
-            i = 0;
-            int tmp_cube_i = i * size_yz;
-            for (j = 0; j < ny; j++){
-                int tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    int cube_index = tmp_cube_j + k;
-                    start_index[count] = cube_blockB[cube_index];
-                    count++;
-                }
-            }
-            if (s != steps - 1){
-                //printf("send side 0! %d data to send \n", node_dsize[0]);
-                //send
-                MPI_Isend(start_index, node_dsize[0], MPI_DOUBLE, node_rank[0], (hash_map[0] + 1) * 10, MPI_COMM_WORLD, &send_request[0]);
-            }
-
-        }
-        // side 1
-        //printf("-------------side 1-------------------\n");
-        if (node_rank[1] >= 0){
-            //printf("cal side 1! \n");
-            int count = 0;
-            double *start_index = (send_buffer + buffer_offset[1]);
-            j = ny - 1;
-            int tmp_cube_j = j * nz;
-            for (i = 0; i < nx; i++){
-                int tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    int cube_index = tmp_cube_i + k;
-                    start_index[count] = cube_blockB[cube_index];
-                    count++;
-                }
-            }
-            if (s != steps - 1){
-                //send
-                //printf("send side 1! \n");
-                MPI_Isend(start_index, node_dsize[1], MPI_DOUBLE, node_rank[1], (hash_map[1] + 1) * 10, MPI_COMM_WORLD, &send_request[1]);
-            }
-
-        }
-
-        //side 2
-        //printf("-------------side 2-------------------\n");
-        if (node_rank[2] >= 0){
-            //printf("cal side 2! \n");
-            int count = 0;
-            double *start_index = (send_buffer + buffer_offset[2]);
-            i = nx - 1;
-            int tmp_cube_i = i * size_yz;
-            for (j = 0; j < ny; j++){
-                int tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    int cube_index = tmp_cube_j + k;
-                    start_index[count] = cube_blockB[cube_index];
-                    count++;
-                }
-            }
-            if (s != steps - 1){
-                //printf("send side 2! %d to send! \n", node_dsize[2]);
-                //send
-                MPI_Isend(start_index, node_dsize[2], MPI_DOUBLE, node_rank[2], (hash_map[2] + 1) * 10, MPI_COMM_WORLD, &send_request[2]);
-            }
-
-        }
-
-        //side 3
-        //printf("-------------side 3-------------------\n");
-        if (node_rank[3] >= 0){
-            //printf("cal side 3! \n");
-            int count = 0;
-            double *start_index = (send_buffer + buffer_offset[3]);
-            j = 0;
-            int tmp_cube_j = j * nz;
-            for (i = 0; i < nx; i++){
-                int tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    int cube_index = tmp_cube_i + k;
-                    start_index[count] = cube_blockB[cube_index];
-                    count++;
-                }
-            }
-            if (s != steps - 1){
-                //printf("send side 3! \n");
-                //send
-                MPI_Isend(start_index, node_dsize[3], MPI_DOUBLE, node_rank[3], (hash_map[3] + 1) * 10, MPI_COMM_WORLD, &send_request[3]);
-            }
-        }
-        //printf("-------------side 4-------------------\n");
-        //side 4
-        if (node_rank[4] >= 0){
-            int count = 0;
-            double *start_index = (send_buffer + buffer_offset[4]);
-            k = 0;
-            int tmp_cube_k = k;
-            //printf("cal side 4! \n");
-            for (i = 0; i < nx; i++){
-                int tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++){
-                    int cube_index = tmp_cube_i + j * nz;
-                    start_index[count] = cube_blockB[cube_index];
-                    count++;
-                }
-                //printf("cal side 4, i : %d \n", i);
-            }
-            if (s != steps - 1){
-                //printf("send side 4! \n");
-                //send
-                MPI_Isend(start_index, node_dsize[4], MPI_DOUBLE, node_rank[4], (hash_map[4] + 1) * 10, MPI_COMM_WORLD, &send_request[4]);
-            }
-        }
-        //printf("-------------side 5-------------------\n");
-        //side 5
-        if (node_rank[5] >= 0) {
-            int count = 0;
-            double *start_index = (double *)(send_buffer + buffer_offset[5]);
-            k = nz - 1;
-            int tmp_cube_k = k;
-            for (i = 0; i < nx; i++) {
-                int tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++) {
-                    int cube_index = tmp_cube_i + j * nz;
-                    start_index[count] = cube_blockB[cube_index];
-                    count++;
-                }
-            }
-            if (s != steps - 1){
-                //printf("send side 5! \n");
-                //send
-                MPI_Isend(start_index, node_dsize[5], MPI_DOUBLE, node_rank[5], (hash_map[5] + 1) * 10, MPI_COMM_WORLD, &send_request[5]);
-            }
-        }
-        //printf("One turn done! \n");
         double *tmp = NULL;
         tmp = cube_blockA, cube_blockA = cube_blockB, cube_blockB = tmp;
 
@@ -824,21 +780,25 @@ int main(int argc, char **argv) {
         printf("partition info, x_par : %d; y_par : %d; z_par : %d \n", info.x_par, info.y_par, info.z_par);
     }
     total_nodes = info.x_par * info.y_par * info.z_par;
-    long long size = NX * NY * NZ;
+    //long long size = NX * NY * NZ;
+    long long  size = info.nx * info.ny * info.nz;
     if (myrank == 0)
         printf("Size:%dx%dx%d, # of Steps: %d, # of procs: %d\n", NX, NY, NZ, STEPS, nprocs);
-    A = (double *) malloc(size * sizeof(double));
-    Init(A, size);
+    cube_blockA = (double *) malloc(size * sizeof(double));
+    Init(cube_blockA, size);
     printf("init data done! total nodes %d\n", total_nodes);
+    /*
     if (myrank < total_nodes){
         copy_data(A, info, NX, NY, NZ, myrank);
         printf("copy data done! \n");
     }
+     */
     struct timeval t1, t2;
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t1, NULL);
     if (myrank < total_nodes){
         stencil(A, info, STEPS, NX, NY, NZ);
     }
+    /*
     if (myrank == 0){
         gather_data(info, A, NX, NY, NZ);
         printf("rank 0 gather data done!\n");
@@ -848,13 +808,14 @@ int main(int argc, char **argv) {
             printf("send data done!\n");
         }
     }
+     */
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
     printf("barrier done! \n");
     if (myrank == 0) {
         printf("Total time: %.6lf\n", TIME(t1, t2));
     }
-    Check(A, size);
-    free(A);
+    Check(cube_blockA, size);
+    //free(A);
 
     if (myrank < total_nodes){
         free(cube_blockA);

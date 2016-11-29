@@ -13,7 +13,7 @@ measure on cn01
 
 ## Network Bandwidth
 
-any tow nodes bandwidth is between 800 MB/s ~ 820 MB/2
+any two nodes bandwidth is between 800 MB/s ~ 820 MB/2
 
 ## hardware
 
