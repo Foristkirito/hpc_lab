@@ -302,7 +302,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
     int size_xy = info.nx * info.ny;
     int size_xz = info.nx * info.nz;
     int size_yz = info.ny * info.nz;
-    printf("cube info, xy : %d; xz : %d; yz : %d \n", size_xy, size_xz, size_yz);
+    //printf("cube info, xy : %d; xz : %d; yz : %d \n", size_xy, size_xz, size_yz);
     if (info.offset_x != 0){
         node_dsize[0] = size_yz;
     } else {
@@ -333,11 +333,13 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
     } else {
         node_dsize[5] = 0;
     }
+    /*
     for (sub_s = 0; sub_s < 6; sub_s++){
         if (node_rank[sub_s] >= 0){
             printf("node rank %d, data size %d \n", node_rank[sub_s], node_dsize[sub_s]);
         }
     }
+     */
     int buffer_size = 2 * size_xy + 2 * size_xz + 2 * size_yz;
     double *send_buffer = (double *)malloc(buffer_size * sizeof(double));
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
@@ -347,7 +349,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
     int ny = info.ny;
     int nz = info.nz;
     for (s = 0; s < steps; s++) {
-        printf("step %d \n", s);
+        //printf("step %d \n", s);
         if (s != 0){
             //before cal get the data asyn
 
@@ -837,11 +839,6 @@ int main(int argc, char **argv) {
     if (myrank < total_nodes){
         stencil(A, info, STEPS, NX, NY, NZ);
     }
-    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
-    printf("barrier done! \n");
-    if (myrank == 0) {
-        printf("Total time: %.6lf\n", TIME(t1, t2));
-    }
     if (myrank == 0){
         gather_data(info, A, NX, NY, NZ);
         printf("rank 0 gather data done!\n");
@@ -850,6 +847,11 @@ int main(int argc, char **argv) {
             send_data(info, myrank);
             printf("send data done!\n");
         }
+    }
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
+    printf("barrier done! \n");
+    if (myrank == 0) {
+        printf("Total time: %.6lf\n", TIME(t1, t2));
     }
     Check(A, size);
     free(A);
