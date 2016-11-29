@@ -3,6 +3,7 @@
 #include <mpi.h>
 #include <math.h>
 #include "./engine/proj_engine.h"
+#include "immintrin.h"
 
 
 #define TIME(a, b) (1.0*((b).tv_sec-(a).tv_sec)+0.000001*((b).tv_usec-(a).tv_usec))
@@ -214,6 +215,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         //write data to send buffer and send
         //side 0
         //printf("begin to send data! \n");
+
         //printf("-------------side 0-------------------\n");
         if (node_rank[0] >= 0){
             //printf("cal side 0! \n");
@@ -354,38 +356,43 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 MPI_Irecv((receive_buffer + buffer_offset[sub_s]), node_dsize[sub_s], MPI_DOUBLE, node_rank[sub_s], (sub_s + 1) * 10, MPI_COMM_WORLD, &recv_request[sub_s]);
             }
         }
+
         ll tmp_i;
         ll tmp_j;
         ll tmp_index;
         double r;
-        #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r) schedule (dynamic)
+        double sum;
+        #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, sum) schedule (dynamic)
         for (i = 0; i < nx; i++){
             tmp_i = i * size_yz;
             for (j = 0; j < ny; j++){
                 tmp_j = tmp_i + j * nz;
                 for (k = 0; k < nz; k++){
                     tmp_index = tmp_j + k;
-                    r = 0.4 * cube_blockA[tmp_index];
+                    sum = 0;
+                    r = cube_blockA[tmp_index];
                     // k + - 1
                     if (k != nz - 1)
-                        r += 0.1 * cube_blockA[tmp_index + 1];
+                        sum += cube_blockA[tmp_index + 1];
                     if (k != 0)
-                        r += 0.1 * cube_blockA[tmp_index - 1];
+                        sum += cube_blockA[tmp_index - 1];
                     // j + - 1
                     if (j != ny - 1)
-                        r += 0.1 * cube_blockA[tmp_index + nz];
+                        sum += cube_blockA[tmp_index + nz];
                     if (j != 0)
-                        r += 0.1 * cube_blockA[tmp_index - nz];
+                        sum += cube_blockA[tmp_index - nz];
                     // i + - 1
                     if (i != nx - 1)
-                        r += 0.1 * cube_blockA[tmp_index + size_yz];
+                        sum += cube_blockA[tmp_index + size_yz];
                     if (i != 0)
-                        r += 0.1 * cube_blockA[tmp_index - size_yz];
-                    cube_blockB[tmp_index] = r;
+                        sum += cube_blockA[tmp_index - size_yz];
+                    cube_blockB[tmp_index] = r * 0.4 + sum * 0.1;
                 }
             }
         }
         //waite data to be received
+
+
         MPI_Status status;
         for (sub_s = 0; sub_s < 6; sub_s++){
             if (node_rank[sub_s] >= 0){
@@ -396,6 +403,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         }
         // begin to cal the edge
         //side 0
+
         if (node_rank[0] >= 0){
             //printf("phase 2 cal side 0\n");
 
@@ -596,12 +604,14 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
+
         //check last send complete
         for (sub_s = 0; sub_s < 6; sub_s++){
             if (node_rank[sub_s] >= 0){
                 MPI_Wait(&send_request[sub_s], &status);
             }
         }
+
         double *tmp = NULL;
         tmp = cube_blockA, cube_blockA = cube_blockB, cube_blockB = tmp;
 
@@ -611,6 +621,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
 }
 
 int main(int argc, char **argv) {
+    omp_set_num_threads(24);
     double *A = NULL;
     double *send_buffer;// store the data to be send, 6 segments, not all are used
     int myrank, nprocs;
