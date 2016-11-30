@@ -215,7 +215,6 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         //write data to send buffer and send
         //side 0
         //printf("begin to send data! \n");
-
         //printf("-------------side 0-------------------\n");
         if (node_rank[0] >= 0){
             //printf("cal side 0! \n");
@@ -361,37 +360,105 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         ll tmp_j;
         ll tmp_index;
         double r;
+        double cal_0;
+        double cal_1;
+        double cal_2;
+        double cal_3;
+        double cal_4;
+        double cal_5;
+        double cal_6;
+        double cal_7;
+        double cal_8;
+        double cal_9;
+        double cal_10;
+        double cal_11;
         double sum;
-        #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, sum) schedule (dynamic)
+        double *result;
+        __m256d cal_const = _mm256_set_pd(0.1, 0.1, 0.1, 0.4);
+        __m256d cal_tmp;
+        __m256d r_tmp;
+        //#pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, cal_0, cal_1, cal_2, cal_3, cal_4, cal_5, cal_tmp, r_tmp, sum, result) schedule (dynamic)
         for (i = 0; i < nx; i++){
             tmp_i = i * size_yz;
             for (j = 0; j < ny; j++){
                 tmp_j = tmp_i + j * nz;
-                for (k = 0; k < nz; k++){
+                for (k = 0; k < nz; k += 2){
                     tmp_index = tmp_j + k;
-                    sum = 0;
-                    r = cube_blockA[tmp_index];
+                    cal_0 = 0;
+                    cal_1 = 0;
+                    cal_2 = 0;
+                    cal_3 = 0;
+                    cal_4 = 0;
+                    cal_5 = 0;
+                    cal_6 = 0;
+                    cal_7 = 0;
+                    cal_8 = 0;
+                    cal_9 = 0;
+                    cal_10 = 0;
+                    cal_11 = 0;
+                    cal_5 = cube_blockA[tmp_index];
                     // k + - 1
-                    if (k != nz - 1)
-                        sum += cube_blockA[tmp_index + 1];
-                    if (k != 0)
-                        sum += cube_blockA[tmp_index - 1];
-                    // j + - 1
-                    if (j != ny - 1)
-                        sum += cube_blockA[tmp_index + nz];
-                    if (j != 0)
-                        sum += cube_blockA[tmp_index - nz];
+                    if (k != nz - 1){
+                        cal_6 = cube_blockA[tmp_index + 1];
+                        // j + - 1
+                        if (j != ny - 1){
+                            cal_8 = cube_blockA[tmp_index + 1 + nz];
+                        }
+                        if (j != 0){
+                            cal_7 = cube_blockA[tmp_index + 1 - nz];
+                        }
+                        // i + - 1
+                        if (i != nx - 1){
+                            cal_10 = cube_blockA[tmp_index + 1 + size_yz];
+                        }
+                        if (i != 0){
+                            cal_11 = cube_blockA[tmp_index + 1 - size_yz];
+                        }
+                        if (k != nz - 2){
+                            cal_9 = cube_blockA[tmp_index + 2];
+                        }
+                    }
+                    if (j != ny - 1){
+                        cal_2 = cube_blockA[tmp_index + nz];
+                    }
+                    if (j != 0){
+                        cal_1 = cube_blockA[tmp_index - nz];
+                    }
                     // i + - 1
-                    if (i != nx - 1)
-                        sum += cube_blockA[tmp_index + size_yz];
-                    if (i != 0)
-                        sum += cube_blockA[tmp_index - size_yz];
-                    cube_blockB[tmp_index] = r * 0.4 + sum * 0.1;
+                    if (i != nx - 1){
+                        cal_3 = cube_blockA[tmp_index + size_yz];
+                    }
+                    if (i != 0){
+                        cal_4 = cube_blockA[tmp_index - size_yz];
+                    }
+                    if (k != 0)
+                        cal_0 = cube_blockA[tmp_index - 1];
+                    /*
+                    __m256d x_1 = _mm256_set_pd(cal_0, cal_1, cal_2, cal_3);
+                    __m256d x_2 = _mm256_set_pd(cal_7, cal_8, cal_9, cal_10);
+                    __m256d sum = _mm256_hadd_pd(x_1, x_2);
+                    __m128d sum_high = _mm256_extractf128_pd(sum, 1);
+                    __m128d result = _mm_add_pd(sum_high, _mm256_castpd256_pd128(sum));
+                    double * result_d = (double *)&result;
+                    x_1 = _mm256_set_pd(result_d[0], cal_4, cal_6, cal_5);
+                    x_2 = _mm256_set_pd(result_d[1], cal_11, cal_5, cal_6);
+                    x_1 = _mm256_mul_pd(x_1, cal_const);
+                    x_2 = _mm256_mul_pd(x_2, cal_const);
+                    sum = _mm256_hadd_pd(x_1, x_2);
+                    sum_high = _mm256_extractf128_pd(sum, 1);
+                    result = _mm_add_pd(sum_high, _mm256_castpd256_pd128(sum));
+                     */
+
+                    double result_1 = cal_5 * 0.4 + (cal_0 + cal_1 + cal_2 + cal_3 + cal_4 + cal_6) * 0.1;
+                    double result_2 = cal_6 * 0.4 + (cal_5 + cal_7 + cal_8 + cal_9 + cal_10 + cal_11) * 0.1;
+                    cube_blockB[tmp_index] = result_1;
+                    if (k != nz - 1){
+                        cube_blockB[tmp_index + 1] = result_2;
+                    }
                 }
             }
         }
         //waite data to be received
-
 
         MPI_Status status;
         for (sub_s = 0; sub_s < 6; sub_s++){
