@@ -4,6 +4,7 @@
 #include <math.h>
 #include "./engine/proj_engine.h"
 #include "immintrin.h"
+#define VLEAVE _mm256_zeroupper
 
 
 #define TIME(a, b) (1.0*((b).tv_sec-(a).tv_sec)+0.000001*((b).tv_usec-(a).tv_usec))
@@ -373,10 +374,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         double cal_10;
         double cal_11;
         double sum;
-        double *result;
         __m256d cal_const = _mm256_set_pd(0.1, 0.1, 0.1, 0.4);
-        __m256d cal_tmp;
-        __m256d r_tmp;
         //#pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, cal_0, cal_1, cal_2, cal_3, cal_4, cal_5, cal_tmp, r_tmp, sum, result) schedule (dynamic)
         for (i = 0; i < nx; i++){
             tmp_i = i * size_yz;
@@ -433,12 +431,14 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     }
                     if (k != 0)
                         cal_0 = cube_blockA[tmp_index - 1];
-                    /*
+
                     __m256d x_1 = _mm256_set_pd(cal_0, cal_1, cal_2, cal_3);
                     __m256d x_2 = _mm256_set_pd(cal_7, cal_8, cal_9, cal_10);
                     __m256d sum = _mm256_hadd_pd(x_1, x_2);
                     __m128d sum_high = _mm256_extractf128_pd(sum, 1);
-                    __m128d result = _mm_add_pd(sum_high, _mm256_castpd256_pd128(sum));
+                    __m128d sum_low = _mm256_castpd256_pd128(sum);
+                    //VLEAVE();
+                    __m128d result = _mm_add_pd(sum_high, sum_low);
                     double * result_d = (double *)&result;
                     x_1 = _mm256_set_pd(result_d[0], cal_4, cal_6, cal_5);
                     x_2 = _mm256_set_pd(result_d[1], cal_11, cal_5, cal_6);
@@ -446,14 +446,15 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     x_2 = _mm256_mul_pd(x_2, cal_const);
                     sum = _mm256_hadd_pd(x_1, x_2);
                     sum_high = _mm256_extractf128_pd(sum, 1);
+                    //VLEAVE();
                     result = _mm_add_pd(sum_high, _mm256_castpd256_pd128(sum));
-                     */
 
-                    double result_1 = cal_5 * 0.4 + (cal_0 + cal_1 + cal_2 + cal_3 + cal_4 + cal_6) * 0.1;
-                    double result_2 = cal_6 * 0.4 + (cal_5 + cal_7 + cal_8 + cal_9 + cal_10 + cal_11) * 0.1;
-                    cube_blockB[tmp_index] = result_1;
+
+                    //double result_1 = cal_5 * 0.4 + (cal_0 + cal_1 + cal_2 + cal_3 + cal_4 + cal_6) * 0.1;
+                    //double result_2 = cal_6 * 0.4 + (cal_5 + cal_7 + cal_8 + cal_9 + cal_10 + cal_11) * 0.1;
+                    cube_blockB[tmp_index] = result_d[0];
                     if (k != nz - 1){
-                        cube_blockB[tmp_index + 1] = result_2;
+                        cube_blockB[tmp_index + 1] = result_d[1];
                     }
                 }
             }
