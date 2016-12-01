@@ -374,8 +374,10 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         double cal_10;
         double cal_11;
         double sum;
+        double result_1;
+        double result_2;
         __m256d cal_const = _mm256_set_pd(0.1, 0.1, 0.1, 0.4);
-        //#pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, cal_0, cal_1, cal_2, cal_3, cal_4, cal_5, cal_tmp, r_tmp, sum, result) schedule (dynamic)
+        #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, cal_0, cal_1, cal_2, cal_3, cal_4, cal_5, cal_6, cal_7,cal_8,cal_9,cal_10,cal_11,result_1,result_2) schedule (dynamic)
         for (i = 0; i < nx; i++){
             tmp_i = i * size_yz;
             for (j = 0; j < ny; j++){
@@ -431,6 +433,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     }
                     if (k != 0)
                         cal_0 = cube_blockA[tmp_index - 1];
+                    /*
 
                     __m256d x_1 = _mm256_set_pd(cal_0, cal_1, cal_2, cal_3);
                     __m256d x_2 = _mm256_set_pd(cal_7, cal_8, cal_9, cal_10);
@@ -448,13 +451,14 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                     sum_high = _mm256_extractf128_pd(sum, 1);
                     //VLEAVE();
                     result = _mm_add_pd(sum_high, _mm256_castpd256_pd128(sum));
+                     */
 
 
-                    //double result_1 = cal_5 * 0.4 + (cal_0 + cal_1 + cal_2 + cal_3 + cal_4 + cal_6) * 0.1;
-                    //double result_2 = cal_6 * 0.4 + (cal_5 + cal_7 + cal_8 + cal_9 + cal_10 + cal_11) * 0.1;
-                    cube_blockB[tmp_index] = result_d[0];
+                    result_1 = cal_5 * 0.4 + (cal_0 + cal_1 + cal_2 + cal_3 + cal_4 + cal_6) * 0.1;
+                    result_2 = cal_6 * 0.4 + (cal_5 + cal_7 + cal_8 + cal_9 + cal_10 + cal_11) * 0.1;
+                    cube_blockB[tmp_index] = result_1;
                     if (k != nz - 1){
-                        cube_blockB[tmp_index + 1] = result_d[1];
+                        cube_blockB[tmp_index + 1] = result_2;
                     }
                 }
             }
