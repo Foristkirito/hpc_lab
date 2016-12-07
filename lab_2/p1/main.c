@@ -51,6 +51,9 @@ int min(int a, int b){
 
 //Must be modified because only single process is used now
 Info setup(int NX, int NY, int NZ, int P, int STEPS) {
+    //set openmp processors
+    int processors_m = omp_get_num_procs();
+    omp_set_num_threads(processors_m);
     //get paetition on every side
     int x_par;
     int y_par;
@@ -157,7 +160,9 @@ Info setup(int NX, int NY, int NZ, int P, int STEPS) {
 //Must be re-written, including all the parameters
 //compute the core mid part of the whole matrix
 
-int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
+int stencil(Info info, int steps, int NX, int NY, int NZ) {
+    static double x_buffer[3][1200 * 700];
+    printf("begin \n");
     int hash_map[6] = {2, 3, 0, 1, 5, 4};
     int sub_s;
 
@@ -165,7 +170,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
     int size_xy = info.nx * info.ny;
     int size_xz = info.nx * info.nz;
     int size_yz = info.ny * info.nz;
-    //printf("cube info, xy : %d; xz : %d; yz : %d \n", size_xy, size_xz, size_yz);
+    printf("cube info, xy : %d; xz : %d; yz : %d \n", size_xy, size_xz, size_yz);
     if (info.offset_x != 0){
         node_dsize[0] = size_yz;
     } else {
@@ -196,13 +201,13 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
     } else {
         node_dsize[5] = 0;
     }
-    /*
+
     for (sub_s = 0; sub_s < 6; sub_s++){
         if (node_rank[sub_s] >= 0){
             printf("node rank %d, data size %d \n", node_rank[sub_s], node_dsize[sub_s]);
         }
     }
-     */
+
     int buffer_size = 2 * size_xy + 2 * size_xz + 2 * size_yz;
     double *send_buffer = (double *)malloc(buffer_size * sizeof(double));
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
@@ -216,7 +221,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         //side 0
         //printf("begin to send data! \n");
 
-        //printf("-------------side 0-------------------\n");
+        printf("-------------side 0-------------------\n");
         if (node_rank[0] >= 0){
             //printf("cal side 0! \n");
             double *start_index = (send_buffer + buffer_offset[0]);
@@ -238,7 +243,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
 
         }
         // side 1
-        //printf("-------------side 1-------------------\n");
+        printf("-------------side 1-------------------\n");
         if (node_rank[1] >= 0){
             //printf("cal side 1! \n");
 
@@ -262,7 +267,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         }
 
         //side 2
-        //printf("-------------side 2-------------------\n");
+        printf("-------------side 2-------------------\n");
         if (node_rank[2] >= 0){
             //printf("cal side 2! \n");
 
@@ -286,7 +291,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         }
 
         //side 3
-        //printf("-------------side 3-------------------\n");
+        printf("-------------side 3-------------------\n");
         if (node_rank[3] >= 0){
             //printf("cal side 3! \n");
             double *start_index = (send_buffer + buffer_offset[3]);
@@ -306,7 +311,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             }
             MPI_Isend(start_index, node_dsize[3], MPI_DOUBLE, node_rank[3], (hash_map[3] + 1) * 10, MPI_COMM_WORLD, &send_request[3]);
         }
-        //printf("-------------side 4-------------------\n");
+        printf("-------------side 4-------------------\n");
         //side 4
         if (node_rank[4] >= 0){
 
@@ -328,7 +333,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             }
             MPI_Isend(start_index, node_dsize[4], MPI_DOUBLE, node_rank[4], (hash_map[4] + 1) * 10, MPI_COMM_WORLD, &send_request[4]);
         }
-        //printf("-------------side 5-------------------\n");
+        printf("-------------side 5-------------------\n");
         //side 5
         if (node_rank[5] >= 0) {
 
@@ -357,11 +362,159 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             }
         }
 
+
+        printf("begin to compute \n");
+        int total = omp_get_num_procs();
+
+        #pragma omp parallel private(x_buffer)
+        {
+
+            int id = omp_get_thread_num();
+            //printf("thread id : %d \n", id);
+            int xh_interval = nx / (total / 2);
+            int yz_no = id % 2;
+            int zh_start;
+            int zh_end;
+            int yh_start;
+            int yh_end;
+            int xh_start = (id / 2) * xh_interval;
+            int xh_end = min(xh_start + xh_interval, nx);
+            if (nz < ny){
+                zh_start = 0;
+                zh_end = nz;
+                if (yz_no == 0){
+                    yh_start = 0;
+                    yh_end = ny / 2 + 1;
+                } else {
+                    yh_start = ny / 2 - 1;
+                    yh_end = ny;
+                }
+            } else {
+                yh_start = 0;
+                yh_end = ny;
+                if (yz_no == 0){
+                    zh_start = 0;
+                    zh_end = nz / 2 + 1;
+                } else {
+                    zh_start = nz / 2 - 1;
+                    zh_end = nz;
+                }
+            }
+            //printf("thread id : %d, init done! \n", id);
+
+            int pos_i;
+            int count;
+            for (pos_i = xh_start; pos_i < xh_end; pos_i++){
+                int tmp_i = pos_i * size_yz;
+
+                // begin to init cache
+                if (pos_i != nx){
+                    //plus 1
+                    int x_buffer_index = (pos_i + 1) % 3;
+                    int tmp_b_i = tmp_i + size_yz;
+                    count = 0;
+                    int pos_j;
+
+                    for (pos_j = yh_start; pos_j < yh_end; pos_j++){
+                        int tmp_b_j = tmp_b_i + pos_j * nz;
+                        int pos_k;
+                        for (pos_k = zh_start; pos_k < zh_end; pos_k++){
+                            int tmp_b_index = tmp_b_j + pos_k;
+                            //double tmp_sc = x_buffer[x_buffer_index][count];
+                            //double a = tmp_sc + 1;
+                            //printf("thread id : %d, x_buffer_index : %d, count : %d !\n", id, x_buffer_index, count);
+                            x_buffer[x_buffer_index][count] = cube_blockA[tmp_b_index];
+                            count++;
+                        }
+                    }
+                }
+                //printf("thread id : %d, init done_1! \n", id);
+
+                if (pos_i == 0){
+                    int tmp_b_i = 0;
+                    int count = 0;
+                    int pos_j;
+                    for (pos_j = yh_start; pos_j < yh_end; pos_j++){
+                        int tmp_b_j = tmp_b_i + pos_j * nz;
+                        int pos_k;
+                        for (pos_k = zh_start; pos_k < zh_end; pos_k++){
+                            int tmp_b_index = tmp_b_j + pos_k;
+                            x_buffer[0][count] = cube_blockA[tmp_b_index];
+                            count++;
+                        }
+                    }
+                }
+                //printf("thread id : %d, init done_2! \n", id);
+                //begin to cal
+                int cache_index;
+                int loop_y_start;
+                int loop_y_end;
+                if (yh_start == 0){
+                    loop_y_start = yh_start;
+                } else {
+                    loop_y_start = yh_start + 1;
+                }
+                if (yh_end == ny){
+                    loop_y_end = yh_end;
+                } else {
+                    loop_y_end = yh_end - 1;
+                }
+                int loop_z_start;
+                if (zh_start == 0){
+                    loop_z_start = zh_start;
+                } else {
+                    loop_z_start = zh_start + 1;
+                }
+                int loop_z_end;
+                if (zh_end == nz){
+                    loop_z_end = zh_end;
+                } else {
+                    loop_z_end = zh_end - 1;
+                }
+                int th_len_z = zh_end - zh_start;
+                double sum;
+                double r;
+                int buffer_yz_index;
+                int current_layer = pos_i % 3;
+                int below_layer = (pos_i - 1) % 3;
+                int above_layer = (pos_i + 1) % 3;
+                int pos_j;
+                //printf("thread id : %d, init done_3! \n", id);
+                for (pos_j = loop_y_start; pos_j < loop_y_end; pos_j++){
+                    ll tmp_j = tmp_i + pos_j * nz;
+                    int pos_k;
+                    for (pos_k = loop_z_start; pos_k < loop_z_end; pos_k++){
+                        sum = 0;
+                        ll tmp_index = tmp_j + pos_k;
+                        buffer_yz_index = (pos_j - yh_start) * th_len_z + pos_k - zh_start;
+                        r = x_buffer[current_layer][buffer_yz_index];
+                        if (pos_k != nz - 1)
+                            sum += x_buffer[current_layer][buffer_yz_index + 1];
+                        if (pos_k != 0)
+                            sum += x_buffer[current_layer][buffer_yz_index - 1];
+                        // j + - 1
+                        if (pos_j != ny - 1)
+                            sum += x_buffer[current_layer][buffer_yz_index + th_len_z];
+                        if (pos_j != 0)
+                            sum += x_buffer[current_layer][buffer_yz_index - th_len_z];
+                        // i + - 1
+                        if (pos_i != nx - 1)
+                            sum += x_buffer[above_layer][buffer_yz_index];
+                        if (pos_i != 0)
+                            sum += x_buffer[below_layer][buffer_yz_index];
+                        cube_blockB[tmp_index] = r * 0.4 + sum * 0.1;
+                    }
+                }
+                //printf("thread id : %d, init done_4! \n", id);
+            }
+
+
+        }
+
+        /*
         ll tmp_i;
         ll tmp_j;
         ll tmp_index;
-        double r;
-        double sum;
         #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, sum) schedule (dynamic)
         for (i = 0; i < nx; i++){
             tmp_i = i * size_yz;
@@ -390,6 +543,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
                 }
             }
         }
+         */
         //waite data to be received
 
 
@@ -621,8 +775,6 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
 }
 
 int main(int argc, char **argv) {
-    omp_set_num_threads(24);
-    double *A = NULL;
     double *send_buffer;// store the data to be send, 6 segments, not all are used
     int myrank, nprocs;
     int NX = 100, NY = 100, NZ = 100, STEPS = 10;
@@ -646,8 +798,11 @@ int main(int argc, char **argv) {
     printf("init data done! total nodes %d\n", total_nodes);
     struct timeval t1, t2;
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t1, NULL);
+    printf("done 2 \n");
     if (myrank < total_nodes){
-        stencil(A, info, STEPS, NX, NY, NZ);
+        printf("done 3 \n");
+        stencil(info, STEPS, NX, NY, NZ);
+        printf("done 4 \n");
     }
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
     printf("barrier done! \n");
