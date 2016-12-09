@@ -2,12 +2,15 @@
 #include <stdlib.h>
 #include <mpi.h>
 #include <math.h>
+#include <pthread.h>
+#include <unistd.h>
 #include "./engine/proj_engine.h"
 #include "immintrin.h"
 
 
 #define TIME(a, b) (1.0*((b).tv_sec-(a).tv_sec)+0.000001*((b).tv_usec-(a).tv_usec))
 #define TESTN 0
+#define THREAD_NUMBER 20
 typedef long long ll;
 
 extern int Init(double *data, long long L);
@@ -22,6 +25,7 @@ MPI_Request recv_request[6]; // receive request to check needed data has been re
 MPI_Request send_request[6]; // send requets
 int buffer_offset[6]; // the start index of par i to send
 int total_nodes;
+pthread_barrier_t barr;
 
 
 // record the cube range
@@ -39,6 +43,15 @@ typedef struct {
   int y_par;
   int z_par;
 } Info;
+
+typedef struct{
+  int steps;
+  int id;
+  int nx;
+  int ny;
+  int nz;
+  double *send_buffer;
+} thread_args;
 
 int min(int a, int b){
     if (a > b){
@@ -157,11 +170,442 @@ Info setup(int NX, int NY, int NZ, int P, int STEPS) {
 //Must be re-written, including all the parameters
 //compute the core mid part of the whole matrix
 
-int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
-    int hash_map[6] = {2, 3, 0, 1, 5, 4};
+void *thread_cal(void *thread_arg){
+    thread_args *args = (thread_args *)thread_arg;
+    int id = args->id;
+    int nx = args->nx;
+    int ny = args->ny;
+    int nz = args->nz;
+    int size_yz = ny * nz;
     int sub_s;
+    int steps = args->steps;
+    double *send_buffer = args->send_buffer;
 
+    int xh_interval = nx / THREAD_NUMBER;
+    int zh_start = 0;
+    int zh_end = nz;
+    int yh_start = 0;
+    int yh_end = ny;
+    int xh_start = id * xh_interval;
+    int xh_end = min(xh_start + xh_interval, nx);
+
+    int i, j, k, s;
+    int hash_map[6] = {2, 3, 0, 1, 5, 4};
     int myrank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    for (s = 0; s < steps; s++) {
+        //write data to send buffer and send
+        //side 0
+        //printf("begin to send data! \n");
+
+        if (id == 0){
+            //printf("-------------side 0-------------------\n");
+            if (node_rank[0] >= 0){
+                //printf("cal side 0! \n");
+                double *start_index = (send_buffer + buffer_offset[0]);
+                i = 0;
+                int tmp_cube_i = i * size_yz;
+                int tmp_cube_j;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+                for (j = 0; j < ny; j++){
+                    tmp_cube_j = tmp_cube_i + j * nz;
+                    for (k = 0; k < nz; k++){
+                        cube_index = tmp_cube_j + k;
+                        count = cube_index - tmp_cube_i;
+                        start_index[count] = cube_blockA[cube_index];
+                    }
+                }
+                MPI_Isend(start_index, node_dsize[0], MPI_DOUBLE, node_rank[0], (hash_map[0] + 1) * 10, MPI_COMM_WORLD, &send_request[0]);
+
+            }
+            // side 1
+            //printf("-------------side 1-------------------\n");
+            if (node_rank[1] >= 0){
+                //printf("cal side 1! \n");
+
+                double *start_index = (send_buffer + buffer_offset[1]);
+                j = ny - 1;
+                int tmp_cube_j = j * nz;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++){
+                    tmp_cube_i = tmp_cube_j + i * size_yz;
+                    for (k = 0; k < nz; k++){
+                        cube_index = tmp_cube_i + k;
+                        count = i * nz + k;
+                        start_index[count] = cube_blockA[cube_index];
+                    }
+                }
+                MPI_Isend(start_index, node_dsize[1], MPI_DOUBLE, node_rank[1], (hash_map[1] + 1) * 10, MPI_COMM_WORLD, &send_request[1]);
+
+            }
+
+            //side 2
+            //printf("-------------side 2-------------------\n");
+            if (node_rank[2] >= 0){
+                //printf("cal side 2! \n");
+
+                double *start_index = (send_buffer + buffer_offset[2]);
+                i = nx - 1;
+                int tmp_cube_i = i * size_yz;
+                int tmp_cube_j;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+                for (j = 0; j < ny; j++){
+                    tmp_cube_j = tmp_cube_i + j * nz;
+                    for (k = 0; k < nz; k++){
+                        cube_index = tmp_cube_j + k;
+                        count = cube_index - tmp_cube_i;
+                        start_index[count] = cube_blockA[cube_index];
+                    }
+                }
+                MPI_Isend(start_index, node_dsize[2], MPI_DOUBLE, node_rank[2], (hash_map[2] + 1) * 10, MPI_COMM_WORLD, &send_request[2]);
+
+            }
+
+            //side 3
+            //printf("-------------side 3-------------------\n");
+            if (node_rank[3] >= 0){
+                //printf("cal side 3! \n");
+                double *start_index = (send_buffer + buffer_offset[3]);
+                j = 0;
+                int tmp_cube_j = j * nz;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++){
+                    tmp_cube_i = tmp_cube_j + i * size_yz;
+                    for (k = 0; k < nz; k++){
+                        cube_index = tmp_cube_i + k;
+                        count = i * nz + k;
+                        start_index[count] = cube_blockA[cube_index];
+                    }
+                }
+                MPI_Isend(start_index, node_dsize[3], MPI_DOUBLE, node_rank[3], (hash_map[3] + 1) * 10, MPI_COMM_WORLD, &send_request[3]);
+            }
+            //printf("-------------side 4-------------------\n");
+            //side 4
+            if (node_rank[4] >= 0){
+
+                double *start_index = (send_buffer + buffer_offset[4]);
+                k = 0;
+                int tmp_cube_k = k;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++){
+                    tmp_cube_i = tmp_cube_k + i * size_yz;
+                    for (j = 0; j < ny; j++){
+                        cube_index = tmp_cube_i + j * nz;
+                        count = i * ny + j;
+                        start_index[count] = cube_blockA[cube_index];
+                    }
+                    //printf("cal side 4, i : %d \n", i);
+                }
+                MPI_Isend(start_index, node_dsize[4], MPI_DOUBLE, node_rank[4], (hash_map[4] + 1) * 10, MPI_COMM_WORLD, &send_request[4]);
+            }
+            //printf("-------------side 5-------------------\n");
+            //side 5
+            if (node_rank[5] >= 0) {
+
+                double *start_index = (double *)(send_buffer + buffer_offset[5]);
+                k = nz - 1;
+                int tmp_cube_k = k;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_k + i * size_yz;
+                    for (j = 0; j < ny; j++) {
+                        cube_index = tmp_cube_i + j * nz;
+                        count = i * ny + j;
+                        start_index[count] = cube_blockA[cube_index];
+                    }
+                }
+                MPI_Isend(start_index, node_dsize[5], MPI_DOUBLE, node_rank[5], (hash_map[5] + 1) * 10, MPI_COMM_WORLD, &send_request[5]);
+            }
+            // gather side data asyn
+            int sub_s;
+            for (sub_s = 0; sub_s < 6; sub_s++){
+                if (node_rank[sub_s] >= 0){
+                    MPI_Irecv((receive_buffer + buffer_offset[sub_s]), node_dsize[sub_s], MPI_DOUBLE, node_rank[sub_s], (sub_s + 1) * 10, MPI_COMM_WORLD, &recv_request[sub_s]);
+                }
+            }
+        }
+        int res = pthread_barrier_wait(&barr);
+        ll tmp_i;
+        ll tmp_j;
+        ll tmp_index;
+        double r;
+        double sum;
+        //#pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, sum,) schedule (dynamic)
+        for (i = xh_start; i < xh_end; i++){
+            tmp_i = i * size_yz;
+            for (j = yh_start; j < yh_end; j++){
+                tmp_j = tmp_i + j * nz;
+                for (k = zh_start; k < zh_end; k++){
+                    tmp_index = tmp_j + k;
+                    sum = 0;
+                    r = cube_blockA[tmp_index];
+                    // k + - 1
+                    if (k != nz - 1)
+                        sum += cube_blockA[tmp_index + 1];
+                    if (k != 0)
+                        sum += cube_blockA[tmp_index - 1];
+                    // j + - 1
+                    if (j != ny - 1)
+                        sum += cube_blockA[tmp_index + nz];
+                    if (j != 0)
+                        sum += cube_blockA[tmp_index - nz];
+                    // i + - 1
+                    if (i != nx - 1)
+                        sum += cube_blockA[tmp_index + size_yz];
+                    if (i != 0)
+                        sum += cube_blockA[tmp_index - size_yz];
+                    //cube_blockB[tmp_index] = r * 0.4 + sum * 0.1;
+                }
+            }
+        }
+        //waite data to be received
+
+
+        if (id == 0) {
+            MPI_Status status;
+            for (sub_s = 0; sub_s < 6; sub_s++) {
+                if (node_rank[sub_s] >= 0) {
+                    //printf("waite receive %d \n", node_rank[sub_s]);
+                    MPI_Wait(&recv_request[sub_s], &status);
+
+                }
+            }
+            // begin to cal the edge
+            //side 0
+
+            if (node_rank[0] >= 0) {
+                //printf("phase 2 cal side 0\n");
+
+                double *start_index = (receive_buffer + buffer_offset[0]);
+                i = 0;
+                int tmp_cube_i = i * size_yz;
+                int tmp_cube_j;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+                for (j = 0; j < ny; j++) {
+                    tmp_cube_j = tmp_cube_i + j * nz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_j + k;
+                        count = cube_index - tmp_cube_i;
+                        cube_blockB[cube_index] += 0.1 * start_index[count];
+                    }
+                }
+            } else {
+                i = 0;
+                int tmp_cube_i = i * size_yz;
+                int tmp_cube_j;
+                int cube_index;
+                //#pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
+                for (j = 0; j < ny; j++) {
+                    tmp_cube_j = tmp_cube_i + j * nz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_j + k;
+                        cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
+                    }
+                }
+            }
+
+            //side 1
+            if (node_rank[1] >= 0) {
+
+                //printf("phase 2 cal side 1\n");
+
+                double *start_index = (receive_buffer + buffer_offset[1]);
+                //printf("receive_buffer[buffer_set[1]] : %lf \n", start_index[0]);
+                j = ny - 1;
+                int tmp_cube_j = j * nz;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_j + i * size_yz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_i + k;
+                        count = i * nz + k;
+                        cube_blockB[cube_index] += 0.1 * start_index[count];
+                    }
+                }
+
+            } else {
+                j = ny - 1;
+                int tmp_cube_j = j * nz;
+                int tmp_cube_i;
+                int cube_index;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_j + i * size_yz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_i + k;
+                        cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
+                    }
+                }
+            }
+
+            //side 2
+            if (node_rank[2] >= 0) {
+                //printf("phase 2 cal side 2\n");
+
+                double *start_index = (receive_buffer + buffer_offset[2]);
+                i = nx - 1;
+                int tmp_cube_i = i * size_yz;
+                int tmp_cube_j;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+                for (j = 0; j < ny; j++) {
+                    tmp_cube_j = tmp_cube_i + j * nz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_j + k;
+                        count = cube_index - tmp_cube_i;
+                        cube_blockB[cube_index] += 0.1 * start_index[count];
+                    }
+                }
+            } else {
+                i = nx - 1;
+                int tmp_cube_i = i * size_yz;
+                int tmp_cube_j;
+                int cube_index;
+                //#pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
+                for (j = 0; j < ny; j++) {
+                    tmp_cube_j = tmp_cube_i + j * nz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_j + k;
+                        cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
+                    }
+                }
+            }
+            //side 3
+            if (node_rank[3] >= 0) {
+
+                double *start_index = (receive_buffer + buffer_offset[3]);
+                j = 0;
+                int tmp_cube_j = j * nz;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_j + i * size_yz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_i + k;
+                        count = i * nz + k;
+                        cube_blockB[cube_index] += 0.1 * start_index[count];
+                    }
+                }
+            } else {
+                j = 0;
+                int tmp_cube_j = j * nz;
+                int tmp_cube_i;
+                int cube_index;
+                //#pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_j + i * size_yz;
+                    for (k = 0; k < nz; k++) {
+                        cube_index = tmp_cube_i + k;
+                        cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
+                    }
+                }
+            }
+
+            //side 4
+            if (node_rank[4] >= 0) {
+                double *start_index = (receive_buffer + buffer_offset[4]);
+                k = 0;
+                int tmp_cube_k = k;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_k + i * size_yz;
+                    for (j = 0; j < ny; j++) {
+                        cube_index = tmp_cube_i + j * nz;
+                        count = i * ny + j;
+                        cube_blockB[cube_index] += 0.1 * start_index[count];
+                    }
+                }
+            } else {
+                k = 0;
+                int tmp_cube_k = k;
+                int tmp_cube_i;
+                int cube_index;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_k + i * size_yz;
+                    for (j = 0; j < ny; j++) {
+                        cube_index = tmp_cube_i + j * nz;
+                        cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
+                    }
+                }
+            }
+            //side 5
+            if (node_rank[5] >= 0) {
+                //printf("phase 2 cal side 5\n");
+
+                double *start_index = (receive_buffer + buffer_offset[5]);
+                k = nz - 1;
+                int tmp_cube_k = k;
+                int tmp_cube_i;
+                int cube_index;
+                int count;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_k + i * size_yz;
+                    for (j = 0; j < ny; j++) {
+                        cube_index = tmp_cube_i + j * nz;
+                        count = i * ny + j;
+                        cube_blockB[cube_index] += 0.1 * start_index[count];
+                    }
+                }
+            } else {
+                k = nz - 1;
+                int tmp_cube_k = k;
+                int tmp_cube_i;
+                int cube_index;
+                //#pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
+                for (i = 0; i < nx; i++) {
+                    tmp_cube_i = tmp_cube_k + i * size_yz;
+                    for (j = 0; j < ny; j++) {
+                        cube_index = tmp_cube_i + j * nz;
+                        cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
+                    }
+                }
+            }
+
+            //check last send complete
+            for (sub_s = 0; sub_s < 6; sub_s++) {
+                if (node_rank[sub_s] >= 0) {
+                    MPI_Wait(&send_request[sub_s], &status);
+                }
+            }
+            double *tmp = NULL;
+            tmp = cube_blockA, cube_blockA = cube_blockB, cube_blockB = tmp;
+        }
+    }
+    //int res = pthread_barrier_wait(&barr);
+}
+
+int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
+
+
     int size_xy = info.nx * info.ny;
     int size_xz = info.nx * info.nz;
     int size_yz = info.ny * info.nz;
@@ -205,423 +649,36 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
      */
     int buffer_size = 2 * size_xy + 2 * size_xz + 2 * size_yz;
     double *send_buffer = (double *)malloc(buffer_size * sizeof(double));
-    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-    int i, j, k, s;
     //int size_yz = info.ny * info.nz;
     int nx = info.nx;
     int ny = info.ny;
     int nz = info.nz;
-    for (s = 0; s < steps; s++) {
-        //write data to send buffer and send
-        //side 0
-        //printf("begin to send data! \n");
-
-        //printf("-------------side 0-------------------\n");
-        if (node_rank[0] >= 0){
-            //printf("cal side 0! \n");
-            double *start_index = (send_buffer + buffer_offset[0]);
-            i = 0;
-            int tmp_cube_i = i * size_yz;
-            int tmp_cube_j;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
-            for (j = 0; j < ny; j++){
-                tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_j + k;
-                    count = cube_index - tmp_cube_i;
-                    start_index[count] = cube_blockA[cube_index];
-                }
-            }
-            MPI_Isend(start_index, node_dsize[0], MPI_DOUBLE, node_rank[0], (hash_map[0] + 1) * 10, MPI_COMM_WORLD, &send_request[0]);
-
-        }
-        // side 1
-        //printf("-------------side 1-------------------\n");
-        if (node_rank[1] >= 0){
-            //printf("cal side 1! \n");
-
-            double *start_index = (send_buffer + buffer_offset[1]);
-            j = ny - 1;
-            int tmp_cube_j = j * nz;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_i + k;
-                    count = i * nz + k;
-                    start_index[count] = cube_blockA[cube_index];
-                }
-            }
-            MPI_Isend(start_index, node_dsize[1], MPI_DOUBLE, node_rank[1], (hash_map[1] + 1) * 10, MPI_COMM_WORLD, &send_request[1]);
-
-        }
-
-        //side 2
-        //printf("-------------side 2-------------------\n");
-        if (node_rank[2] >= 0){
-            //printf("cal side 2! \n");
-
-            double *start_index = (send_buffer + buffer_offset[2]);
-            i = nx - 1;
-            int tmp_cube_i = i * size_yz;
-            int tmp_cube_j;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
-            for (j = 0; j < ny; j++){
-                tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_j + k;
-                    count = cube_index - tmp_cube_i;
-                    start_index[count] = cube_blockA[cube_index];
-                }
-            }
-            MPI_Isend(start_index, node_dsize[2], MPI_DOUBLE, node_rank[2], (hash_map[2] + 1) * 10, MPI_COMM_WORLD, &send_request[2]);
-
-        }
-
-        //side 3
-        //printf("-------------side 3-------------------\n");
-        if (node_rank[3] >= 0){
-            //printf("cal side 3! \n");
-            double *start_index = (send_buffer + buffer_offset[3]);
-            j = 0;
-            int tmp_cube_j = j * nz;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_i + k;
-                    count = i * nz + k;
-                    start_index[count] = cube_blockA[cube_index];
-                }
-            }
-            MPI_Isend(start_index, node_dsize[3], MPI_DOUBLE, node_rank[3], (hash_map[3] + 1) * 10, MPI_COMM_WORLD, &send_request[3]);
-        }
-        //printf("-------------side 4-------------------\n");
-        //side 4
-        if (node_rank[4] >= 0){
-
-            double *start_index = (send_buffer + buffer_offset[4]);
-            k = 0;
-            int tmp_cube_k = k;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++){
-                    cube_index = tmp_cube_i + j * nz;
-                    count = i * ny + j;
-                    start_index[count] = cube_blockA[cube_index];
-                }
-                //printf("cal side 4, i : %d \n", i);
-            }
-            MPI_Isend(start_index, node_dsize[4], MPI_DOUBLE, node_rank[4], (hash_map[4] + 1) * 10, MPI_COMM_WORLD, &send_request[4]);
-        }
-        //printf("-------------side 5-------------------\n");
-        //side 5
-        if (node_rank[5] >= 0) {
-
-            double *start_index = (double *)(send_buffer + buffer_offset[5]);
-            k = nz - 1;
-            int tmp_cube_k = k;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++) {
-                tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++) {
-                    cube_index = tmp_cube_i + j * nz;
-                    count = i * ny + j;
-                    start_index[count] = cube_blockA[cube_index];
-                }
-            }
-            MPI_Isend(start_index, node_dsize[5], MPI_DOUBLE, node_rank[5], (hash_map[5] + 1) * 10, MPI_COMM_WORLD, &send_request[5]);
-        }
-        // gather side data asyn
-        int sub_s;
-        for (sub_s = 0; sub_s < 6; sub_s++){
-            if (node_rank[sub_s] >= 0){
-                MPI_Irecv((receive_buffer + buffer_offset[sub_s]), node_dsize[sub_s], MPI_DOUBLE, node_rank[sub_s], (sub_s + 1) * 10, MPI_COMM_WORLD, &recv_request[sub_s]);
-            }
-        }
-
-        ll tmp_i;
-        ll tmp_j;
-        ll tmp_index;
-        double r;
-        double sum;
-        #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, sum) schedule (dynamic)
-        for (i = 0; i < nx; i++){
-            tmp_i = i * size_yz;
-            for (j = 0; j < ny; j++){
-                tmp_j = tmp_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    tmp_index = tmp_j + k;
-                    sum = 0;
-                    r = cube_blockA[tmp_index];
-                    // k + - 1
-                    if (k != nz - 1)
-                        sum += cube_blockA[tmp_index + 1];
-                    if (k != 0)
-                        sum += cube_blockA[tmp_index - 1];
-                    // j + - 1
-                    if (j != ny - 1)
-                        sum += cube_blockA[tmp_index + nz];
-                    if (j != 0)
-                        sum += cube_blockA[tmp_index - nz];
-                    // i + - 1
-                    if (i != nx - 1)
-                        sum += cube_blockA[tmp_index + size_yz];
-                    if (i != 0)
-                        sum += cube_blockA[tmp_index - size_yz];
-                    cube_blockB[tmp_index] = r * 0.4 + sum * 0.1;
-                }
-            }
-        }
-        //waite data to be received
-
-
-        MPI_Status status;
-        for (sub_s = 0; sub_s < 6; sub_s++){
-            if (node_rank[sub_s] >= 0){
-                //printf("waite receive %d \n", node_rank[sub_s]);
-                MPI_Wait(&recv_request[sub_s], &status);
-
-            }
-        }
-        // begin to cal the edge
-        //side 0
-
-        if (node_rank[0] >= 0){
-            //printf("phase 2 cal side 0\n");
-
-            double *start_index = (receive_buffer + buffer_offset[0]);
-            i = 0;
-            int tmp_cube_i = i * size_yz;
-            int tmp_cube_j;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
-            for (j = 0; j < ny; j++){
-                tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_j + k;
-                    count = cube_index - tmp_cube_i;
-                    cube_blockB[cube_index] += 0.1 * start_index[count];
-                }
-            }
-        } else {
-            i = 0;
-            int tmp_cube_i = i * size_yz;
-            int tmp_cube_j;
-            int cube_index;
-            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
-            for (j = 0; j < ny; j++){
-                tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_j + k;
-                    cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
-                }
-            }
-        }
-
-        //side 1
-        if (node_rank[1] >= 0){
-
-            //printf("phase 2 cal side 1\n");
-
-            double *start_index = (receive_buffer + buffer_offset[1]);
-            //printf("receive_buffer[buffer_set[1]] : %lf \n", start_index[0]);
-            j = ny - 1;
-            int tmp_cube_j = j * nz;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_i + k;
-                    count = i * nz + k;
-                    cube_blockB[cube_index] += 0.1 * start_index[count];
-                }
-            }
-
-        } else {
-            j = ny - 1;
-            int tmp_cube_j = j * nz;
-            int tmp_cube_i;
-            int cube_index;
-            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_i + k;
-                    cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
-                }
-            }
-        }
-
-        //side 2
-        if (node_rank[2] >= 0){
-            //printf("phase 2 cal side 2\n");
-
-            double *start_index = (receive_buffer + buffer_offset[2]);
-            i = nx - 1;
-            int tmp_cube_i = i * size_yz;
-            int tmp_cube_j;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
-            for (j = 0; j < ny; j++){
-                tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_j + k;
-                    count = cube_index - tmp_cube_i;
-                    cube_blockB[cube_index] += 0.1 * start_index[count];
-                }
-            }
-        } else {
-            i = nx - 1;
-            int tmp_cube_i = i * size_yz;
-            int tmp_cube_j;
-            int cube_index;
-            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
-            for (j = 0; j < ny; j++){
-                tmp_cube_j = tmp_cube_i + j * nz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_j + k;
-                    cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
-                }
-            }
-        }
-        //side 3
-        if (node_rank[3] >= 0){
-
-            double *start_index = (receive_buffer + buffer_offset[3]);
-            j = 0;
-            int tmp_cube_j = j * nz;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_i + k;
-                    count = i * nz + k;
-                    cube_blockB[cube_index] += 0.1 * start_index[count];
-                }
-            }
-        } else {
-            j = 0;
-            int tmp_cube_j = j * nz;
-            int tmp_cube_i;
-            int cube_index;
-            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_j + i * size_yz;
-                for (k = 0; k < nz; k++){
-                    cube_index = tmp_cube_i + k;
-                    cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
-                }
-            }
-        }
-
-        //side 4
-        if (node_rank[4] >= 0){
-            double *start_index = (receive_buffer + buffer_offset[4]);
-            k = 0;
-            int tmp_cube_k = k;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++){
-                    cube_index = tmp_cube_i + j * nz;
-                    count = i * ny + j;
-                    cube_blockB[cube_index] += 0.1 * start_index[count];
-                }
-            }
-        } else {
-            k = 0;
-            int tmp_cube_k = k;
-            int tmp_cube_i;
-            int cube_index;
-            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++){
-                    cube_index = tmp_cube_i + j * nz;
-                    cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
-                }
-            }
-        }
-        //side 5
-        if (node_rank[5] >= 0){
-            //printf("phase 2 cal side 5\n");
-
-            double *start_index = (receive_buffer + buffer_offset[5]);
-            k = nz - 1;
-            int tmp_cube_k = k;
-            int tmp_cube_i;
-            int cube_index;
-            int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++){
-                    cube_index = tmp_cube_i + j * nz;
-                    count = i * ny + j;
-                    cube_blockB[cube_index] += 0.1 * start_index[count];
-                }
-            }
-        } else {
-            k = nz - 1;
-            int tmp_cube_k = k;
-            int tmp_cube_i;
-            int cube_index;
-            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
-            for (i = 0; i < nx; i++){
-                tmp_cube_i = tmp_cube_k + i * size_yz;
-                for (j = 0; j < ny; j++){
-                    cube_index = tmp_cube_i + j * nz;
-                    cube_blockB[cube_index] += 0.1 * cube_blockA[cube_index];
-                }
-            }
-        }
-
-        //check last send complete
-        for (sub_s = 0; sub_s < 6; sub_s++){
-            if (node_rank[sub_s] >= 0){
-                MPI_Wait(&send_request[sub_s], &status);
-            }
-        }
-
-        double *tmp = NULL;
-        tmp = cube_blockA, cube_blockA = cube_blockB, cube_blockB = tmp;
-
+    thread_args t_data[THREAD_NUMBER];
+    pthread_t threads[THREAD_NUMBER];
+    int id;
+    printf("begin to init threads \n");
+    pthread_barrier_init(&barr, NULL, THREAD_NUMBER);
+    for (id = 0; id < THREAD_NUMBER; id++){
+        t_data[id].nx = nx;
+        t_data[id].ny = ny;
+        t_data[id].nz = nz;
+        t_data[id].steps = steps;
+        t_data[id].id = id;
+        t_data[id].send_buffer = send_buffer;
+        pthread_create(&threads[id], NULL, thread_cal, (void *) &t_data[id]);
     }
+
+    for (id = 0; id < THREAD_NUMBER; id++){
+        pthread_join(threads[id], NULL);
+    }
+
+    printf("stencil barrier done !\n");
     free(send_buffer);
     return 0;
 }
 
 int main(int argc, char **argv) {
-    omp_set_num_threads(24);
+    omp_set_num_threads(10);
     double *A = NULL;
     double *send_buffer;// store the data to be send, 6 segments, not all are used
     int myrank, nprocs;

@@ -1,7 +1,7 @@
 default:stencil
 
 CC = mpiicc
-CFLAGS = -O3 -xAVX -openmp
+CFLAGS = -O3 -xAVX -openmp -pthread
 CLIBS  = -openmp
 
 stencil:main.o
