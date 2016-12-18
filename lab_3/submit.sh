@@ -10,4 +10,4 @@
 unset I_MPI_PMI_LIBRARY
 mpiexec.hydra -bootstrap slurm -l \
   -genv KMP_AFFINITY compact \
- ./main
+ ./main 2 1 1

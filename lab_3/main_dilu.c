@@ -239,13 +239,6 @@ Data_Info init_info(int NX, int NY, int NZ, int PX, int PY, int PZ){
         node_rank[4] = (line_rank + 1) % PX + line_lay * PX + PX;
         target_side[4] = 0;
     }
-    if (myrank == 0){
-        //printf("x: %d, x_end : %d, y : %d, y_end : %d, z : %d, z_end : %d \n", info.x_start, info.x_end, info.y_start, info.y_end, info.z_start, info.z_end);
-
-    }
-    for (i = 0; i < 8; i++){
-        printf("side : %d, size : %d, node_rank : %d, target : %d \n", i, node_dsize[i], node_rank[i], target_side[i]);
-    }
     return info;
 }
 
@@ -351,37 +344,14 @@ void init_A(char *filename_A, Data_Info info){
                     ll index_all = (i + info.x_start) * size_all + (j + info.y_start) * info.tZ + k + info.z_start;
                     //get col
                     int sub_num;
-                    /*
-                    if (info.myrank == 0){
-                        if (index_cube == 1231198){
-                            printf("row : 1231198, col: ");
-                        }
-                    }
-                     */
                     for (sub_num = 0; sub_num < 19; sub_num++){
                         double val = data[index_all].val[sub_num];
-                        /*
-                        if (info.myrank == 1 && i == 0 && j == 0 && k == 0){
-                            printf("--------1---------data[%d] : %.10lf\n", index_all, val);
-                        }
-                         */
                         int g_index_v;
                         int col = get_col(i + x_cor[sub_num], j + y_cor[sub_num], k + z_cor[sub_num], info, &g_index_v);
-                        if (info.myrank == 0){
-                            if (col == 1241559){
-                                printf("col : %d i : %d, j : %d, k : %d \n", col, i + x_cor[sub_num], j + y_cor[sub_num], k + z_cor[sub_num]);
-                            }
-                        }
 
                         if (col >= 0){
                             data_tmp[pair_count].val = val;
                             data_tmp[pair_count].col = col;
-
-                            if (info.myrank == 0){
-                                if (index_cube == 1231200){
-                                    //printf("col : %d i : %d, j : %d, k : %d \n", data_tmp[pair_count].col, i + x_cor[sub_num], j + y_cor[sub_num], k + z_cor[sub_num]);
-                                }
-                            }
 
                             if (col >= size_cube * info.nx){
                                 g_map[col - size_cube * info.nx] = g_index_v;
@@ -404,7 +374,6 @@ void init_A(char *filename_A, Data_Info info){
                         }
                     }
                     A_ptr[index_cube + 1] = A_ptr[index_cube] + pair_count;
-                    //printf("index cube: %d, pair count : %d \n", index_cube, pair_count);
                 }
             }
         }
@@ -478,9 +447,9 @@ void init_x(char *filename_x, Data_Info info){
         int i, j, k;
         ll size_cube = info.ny * info.nz;
         ll size_all = info.tY * info.tZ;
-        for (i = 0; i < info.nx; i++){
-            for (j = 0; j < info.ny; j++){
-                for (k = 0; k < info.nz; k++){
+        for (i = 0; i < info.nx; i++) {
+            for (j = 0; j < info.ny; j++) {
+                for (k = 0; k < info.nz; k++) {
                     ll index_cube = i * size_cube + j * info.nz + k; //row number of cube
                     ll index_all = (i + info.x_start) * size_all + (j + info.y_start) * info.tZ + k + info.z_start;
                     //fill into x_0 in x y z order
@@ -488,15 +457,6 @@ void init_x(char *filename_x, Data_Info info){
                 }
             }
         }
-        //init side
-        /*
-        for (i = 0; i < (info.len_x - info.len_vb); i++){
-            if (g_map[i] > 0){
-                x[i + info.len_vb] = data[g_map[i]].val;
-            }
-        }
-         */
-
 
     } else {
         printf("read A file error!\n");
@@ -533,7 +493,8 @@ double get_value(int i, int j, double *matrix){
     return 0;
 }
 
-void DILU(double *M, int rows){
+void
+DILU(double *M, int rows){
     //只做方阵
     int i;
     for (i = 0; i < rows; i++){
@@ -546,12 +507,12 @@ void DILU(double *M, int rows){
         M[i] = 1 / M[i];
         int pos;
         for (pos = start_pos; pos < end_pos; pos++){
-            int j = A_col[j];
-            if (j > i){
+            int j = A_col[pos];
+            if (j > i && j < rows){
                 double a_ij = get_value(i, j, A_value);
-                if (fabs(a_ij - 0) < 0.00000000001){
+                if (fabs(a_ij - 0) > 0.00000000001){
                     double a_ji = get_value(j, i, A_value);
-                    if (fabs(a_ji - 0) < 0.00000000001){
+                    if (fabs(a_ji - 0) > 0.00000000001){
                         M[j] = M[j] - a_ji * M[i] * a_ij;
                     }
                 }
@@ -620,37 +581,22 @@ int check_x(int s, int rows, int myrank, Data_Info info){
     for (i = s; i < rows; i++){
         int start_j = A_ptr[i];
         int end_j = A_ptr[i + 1];
-        //double b_i = b[i];
-        double b_i = 0;
+        double b_i = b[i];
+        //double b_i = 0;
         double Ax_i = 0;
         for (j = start_j; j < end_j; j++){
             Ax_i += A_value[j] * x[A_col[j]];
-            if (myrank == 0){
-                if (i == 0){
-                    printf("col : %d, A : %.10f,  x : %.10lf \n", A_col[j], A_value[j], x[A_col[j]]);
-                }
-            }
         }
         sum += (b_i - Ax_i) * (b_i - Ax_i);
-        if (myrank == 0){
-            if (i == 0){
-                printf_x(info);
-                printf("row : %d, sum_0 : %.10lf \n", i, sum);
-            }
-        }
     }
 
     double g_sum;
-    int nx = info.nx;
-    int ny = info.ny;
-    int nz = info.nz;
-    if (myrank == 0){
-
+    if(myrank == 0){
         printf("sum : %.10lf \n", sum);
     }
     MPI_Allreduce(&sum, &g_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    //g_sum = sqrt(g_sum);
-    if (myrank == 0){
+    g_sum = sqrt(g_sum);
+    if(myrank == 0){
         printf("g_sum : %.10lf \n", g_sum);
     }
     if (g_sum < 0.000018789184606079){
@@ -666,9 +612,6 @@ void check_R(int rows, double *R){
     for (i = 0; i < rows ; i++){
         tmp += R[i] * R[i];
     }
-    tmp = sqrt(tmp);
-
-    //printf("R sum : %.10lf \n", tmp);
 }
 
 void check_P(int rows, double *P){
@@ -708,11 +651,6 @@ void send_data(double *vector, int nx, int ny, int nz, int myrank){
                     for (k = 0; k < nz; k++){
                         int index = i * size_yz + j * nz + k;
                         start_index[count] = vector[index];
-                        if (myrank == 1){
-                            if (count == 6939){
-                                printf("i : %d, j : %d, k : %d value: %.10lf\n", i, j, k, vector[index]);
-                            }
-                        }
                         count++;
                     }
                 }
@@ -755,10 +693,28 @@ void wait_recv(int myrank){
     }
 }
 
+void print_r_hat(double *v, int len){
+    int i;
+    for(i = 0; i < len; i++){
+        printf("rows : %d, R_hat : %.20lf \n", i, v[i]);
+    }
+}
+
+void check_sum_p(double *p, int len){
+    int i;
+    double tmp = 0;
+    for (i = 0; i < len; i++){
+        tmp += p[i] * p[i];
+    }
+    double g_sum;
+    MPI_Allreduce(&tmp, &g_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    printf("---------------------check sum : %.10lf \n", g_sum);
+}
+
 void gcr(Data_Info info, int k){
     //printf("begin to cal gcr\n");
     //init data
-    double *R = (double *) malloc(info.len_vb * sizeof(double));
+    double *R = (double *) malloc(info.len_x * sizeof(double));
     if (R == NULL){
         printf("R null \n");
     }
@@ -793,53 +749,32 @@ void gcr(Data_Info info, int k){
     recv_data(recv_start, info.myrank);
     //waite recv done
     wait_recv(info.myrank);
-    //check_x(0, info.len_vb / 2, info.myrank);
-    //check_x(info.len_vb / 2, info.len_vb, info.myrank);
     check_x(0, info.len_vb, info.myrank, info);
-    return;
-    printf("data receive done 1\n");
+
     A_m_vector(x, info.len_vb, info.len_x, R); //ok
-    printf("data mul done 1\n");
+
     int i;
     for (i = 0; i < info.len_vb; i++){
         R[i] = b[i] - R[i];
     }
-    printf("init R done\n");
+    //check_R(info.len_vb, R);
     //init M
-    if(info.myrank == 1){
-        printf("M[0] : %.10lf \n", M[0]);
-    }
+
     DILU(M, info.len_vb);
-    if(info.myrank == 1){
-        printf("M[0] : %.10lf \n", M[0]);
-    }
-    printf("init M done\n");
+
+     */
     // get r hat
-    if(info.myrank == 1){
-        printf("R_hat[0] : %.10lf \n", R_hat[0]);
-    }
     dilu_solver(R, M, R_hat, info.len_vb);
-    if(info.myrank == 1){
-        printf("R_hat[0] : %.10lf \n", R_hat[0]);
-    }
-    printf("init R hat done\n");
+
     // init p_0
     memcpy(p, R_hat, info.len_vb * sizeof(double));
     // init Ap,  A * p_0 = A * R_hat , need communicate -------------------
     send_data(R_hat, info.nx, info.ny, info.nz, info.myrank);
     recv_start = R_hat + info.len_vb;
-    if(info.myrank == 1){
-        printf("R_hat[0] : %.10lf \n", R_hat[0]);
-    }
     recv_data(recv_start, info.myrank);
     wait_recv(info.myrank);
-    if(info.myrank == 1){
-        printf("R_hat[0] : %.10lf , Ap[0] : %.10lf\n", R_hat[0], Ap[0]);
-    }
+
     A_m_vector(R_hat, info.len_vb, info.len_x, Ap);
-    if(info.myrank == 1){
-        printf("R_hat[0] : %.10lf , Ap[0] : %.10lf\n", R_hat[0], Ap[0]);
-    }
     printf("init Ap done\n");
     int steps = 0; //迭代的次数
     //开始迭代
@@ -870,7 +805,13 @@ void gcr(Data_Info info, int k){
         update_x(p_i, alpha, info.len_vb);
         //printf("update x done\n");
         //开始check需要进行通讯---------------------
+        send_data(x, info.nx, info.ny, info.nz, info.myrank);
+        recv_start = x + info.len_vb;
+        recv_data(recv_start, info.myrank);
+        //waite recv done
+        wait_recv(info.myrank);
         int judge = check_x(0, info.len_vb, info.myrank, info);
+
         //printf("check x done\n");
         if (judge == 1){
             printf("step: %d, x get\n", steps);
@@ -880,34 +821,26 @@ void gcr(Data_Info info, int k){
         }
         //开始更新R
         update_R(R, alpha, Ap_i, info.len_vb);
-        //check_R(info.len_vb, R);
-        //printf("update R done\n");
         //跟新 R_hat 不需要通讯
         dilu_solver(R, M, R_hat, info.len_vb);
         //R_hat = R;
-        //printf("update R hat done\n");
         // 开始计算beta
         int sub_j;
         //计算 A * R_hat, 需要局部通讯到R_hat-----------------
-        //send_data(R_hat, info.nx, info.ny, info.nz, info.myrank);
-        //recv_start = R_hat + info.len_vb;
-        //recv_data(recv_start, info.myrank);
-        //wait_recv(info.myrank);
+        send_data(R_hat, info.nx, info.ny, info.nz, info.myrank);
+        recv_start = R_hat + info.len_vb;
+        recv_data(recv_start, info.myrank);
+        wait_recv(info.myrank);
         A_m_vector(R_hat, info.len_vb, info.len_x, mid_result);
+
         for (sub_j = (steps / k) * k; sub_j <= steps; sub_j++){
             //计算分子的点积, 需要allreduce-------------------------
             double *Ap_j = Ap + (sub_j % k) * info.len_vb;
-            numerator = vector_dot(mid_result, Ap_j, info.len_vb);
+            l_numerator = vector_dot(mid_result, Ap_j, info.len_vb);
+            MPI_Allreduce(&l_numerator, &numerator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
             denominator = Ap_idot[sub_j % k];
             beta[sub_j % k] = -numerator / denominator;
         }
-        /*
-        for (sub_j = 0; sub_j < k; sub_j++){
-            printf("beta[%d] : %0.19lf; ", sub_j, beta[sub_j]);
-        }
-        */
-        printf("\n");
-        //printf("get beta done\n");
         // 开始更新p_i
         steps++;
         p_i = p + (steps % k) * info.len_vb;
@@ -938,7 +871,7 @@ void gcr(Data_Info info, int k){
             Ap_i[sub_i] = tmp_result;
         }
         printf("update Ap_i done\n");
-        if (steps == 41){
+        if (steps == 150){
             printf("failed \n");
             break;
         }
@@ -951,9 +884,7 @@ int main(int argc, char **argv) {
     int NX = atoi(argv[1]);
     int NY = atoi(argv[2]);
     int NZ = atoi(argv[3]);
-    int PX = atoi(argv[4]);
-    int PY = atoi(argv[5]);
-    int PZ = atoi(argv[6]);
+
     char *filename_A = argv[7];
     char *filename_x0 = argv[8];
     char *filename_b = argv[9];
@@ -964,9 +895,9 @@ int main(int argc, char **argv) {
     int NX = 360;
     int NY = 180;
     int NZ = 38;
-    int PX = 2;
-    int PY = 1;
-    int PZ = 1;
+    int PX = atoi(argv[1]);
+    int PY = atoi(argv[2]);
+    int PZ = atoi(argv[3]);
     total_nodes = PX * PY * PZ;
     char *filename_A = "./data/case_1bin/data_A.bin";
     char *filename_x0 = "./data/case_1bin/data_x0.bin";
