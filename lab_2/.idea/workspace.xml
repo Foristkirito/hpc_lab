@@ -13,11 +13,8 @@
   <component name="ChangeListManager">
     <list default="true" id="2296888d-df11-4f1b-8a67-d52e5ef1fdb5" name="Default" comment="">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/p1/main.c" afterPath="$PROJECT_DIR$/p1/main.c" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/p1/submit.sh" afterPath="$PROJECT_DIR$/p1/submit.sh" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../lab_3/.idea/workspace.xml" afterPath="$PROJECT_DIR$/../lab_3/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../lab_3/main_dilu.c" afterPath="$PROJECT_DIR$/../lab_3/main_dilu.c" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/../lab_3/submit.sh" afterPath="$PROJECT_DIR$/../lab_3/submit.sh" />
     </list>
     <ignored path="proj1.iws" />
     <ignored path=".idea/workspace.xml" />

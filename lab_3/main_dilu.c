@@ -493,8 +493,7 @@ double get_value(int i, int j, double *matrix){
     return 0;
 }
 
-void
-DILU(double *M, int rows){
+void DILU(double *M, int rows){
     //只做方阵
     int i;
     for (i = 0; i < rows; i++){
