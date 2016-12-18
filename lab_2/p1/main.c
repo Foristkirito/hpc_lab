@@ -32,7 +32,7 @@ typedef struct {
   int end_y;
   int offset_z;
   int end_z;
-  int nx;
+  int nx;x
   int ny;
   int nz;
   int x_par;
