@@ -7,8 +7,8 @@ CLIBS  = -openmp
 main:main.o
 	$(CC) $(CLIBS) main.o -o main
 
-main.o:main_dilu.c
-	$(CC) $(CFLAGS) -c main_dilu.c -o main.o
+main.o:main.c
+	$(CC) $(CFLAGS) -c main.c -o main.o
 
 clean:
 	rm -rf main *.o
