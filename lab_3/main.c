@@ -35,19 +35,6 @@ typedef struct{
   double val;
 } pair;
 
-typedef struct{
-  int i;
-  int j;
-  int k;
-  double val[19];
-} around_point;
-
-typedef struct{
-  int i;
-  int j;
-  int k;
-  double val;
-} v_struct;
 
 
 double *A_value; // partial A
@@ -60,7 +47,6 @@ int *g_map;//map behind index to global index
 MPI_Request recv_request[8]; // receive request to check needed data has been received. not all are used
 MPI_Request send_request[8]; // send requets
 int buffer_offset[8]; // the start index of par i to send
-int total_nodes;
 int node_dsize[8]; // this node communicates with 8 nodes at most, this array save the date size to transfer
 int node_rank[8]; // save the node rank to communication
 int target_side[8]; // 初始化目标的index, 从接受者的角度来看
@@ -244,8 +230,7 @@ Data_Info init_info(int NX, int NY, int NZ, int PX, int PY, int PZ){
     return info;
 }
 
-int get_col(int i, int j, int k, Data_Info info, int *g_index){
-    *g_index = 0;
+int get_col(int i, int j, int k, Data_Info info){
     if (i >= 0 && i < info.nx && j >= 0 && j < info.ny && k >=0 && k < info.nz){
         return (i * info.ny * info.nz + j * info.nz + k);
     }
@@ -275,7 +260,6 @@ int get_col(int i, int j, int k, Data_Info info, int *g_index){
     } else {
         // the node is outof cube
         int size = info.nx * info.ny * info.nz;
-        *g_index = g_i * info.tY * info.tZ + g_j * info.tZ + g_k;
         if (j == -1){
             if (i == -1){
                 //side 0
@@ -328,13 +312,15 @@ int pair_comparitor (const void* lhs, const void* rhs) {
 
 void init_A(char *filename_A, Data_Info info){
     int input_fd = open(filename_A, O_RDONLY);
-    ll size = info.tX * info.tY * info.tZ;
-    around_point *data = (around_point *)malloc(size * sizeof(around_point));
+    ll size = info.nx * info.ny * info.nz;
+    double *data = (double *)malloc(size * 19 * sizeof(double));
+    ll file_offset = info.x_start * info.tY * info.nz + info.y_start * info.nz + info.z_start;
+    ll result = lseek(input_fd, file_offset * 19 * sizeof(double), SEEK_SET);
+    printf("file offset : %d\n", result);
     A_ptr[0] = 0;
-    if ((read(input_fd,data,sizeof(around_point) * size)) > 0){
+    if ((read(input_fd, data, sizeof(double) * size * 19)) > 0){
         int i, j, k;
         ll size_cube = info.ny * info.nz;
-        ll size_all = info.tY * info.tZ;
         int count = 0;
         for (i = 0; i < info.nx; i++){
             for (j = 0; j < info.ny; j++){
@@ -342,21 +328,15 @@ void init_A(char *filename_A, Data_Info info){
                     pair data_tmp[19];
                     int pair_count = 0;
                     ll index_cube = i * size_cube + j * info.nz + k; //row number of cube
-                    ll index_all = (i + info.x_start) * size_all + (j + info.y_start) * info.tZ + k + info.z_start;
                     //get col
                     int sub_num;
                     for (sub_num = 0; sub_num < 19; sub_num++){
-                        double val = data[index_all].val[sub_num];
-                        int g_index_v;
-                        int col = get_col(i + x_cor[sub_num], j + y_cor[sub_num], k + z_cor[sub_num], info, &g_index_v);
+                        double val = data[index_cube * 19 + sub_num];
+                        int col = get_col(i + x_cor[sub_num], j + y_cor[sub_num], k + z_cor[sub_num], info);
 
                         if (col >= 0){
                             data_tmp[pair_count].val = val;
                             data_tmp[pair_count].col = col;
-
-                            if (col >= size_cube * info.nx){
-                                g_map[col - size_cube * info.nx] = g_index_v;
-                            }
                             pair_count++;
                         }
                     }
@@ -369,11 +349,6 @@ void init_A(char *filename_A, Data_Info info){
                         A_col[count] = data_tmp[sub_num].col;
                         count++;
                     }
-                    if (info.myrank == 0){
-                        if (index_cube == 1231198){
-                            printf("\n");
-                        }
-                    }
                     A_ptr[index_cube + 1] = A_ptr[index_cube] + pair_count;
                 }
             }
@@ -381,7 +356,7 @@ void init_A(char *filename_A, Data_Info info){
     } else {
         printf("read A file error!\n");
     }
-    //free(data);
+    free(data);
     close(input_fd);
 }
 
@@ -417,44 +392,44 @@ void printf_x(Data_Info info){
 
 void init_b(char *filename_b, Data_Info info){
     int input_fd = open(filename_b, O_RDONLY);
-    ll size = info.tX * info.tY * info.tZ;
-    v_struct *data = (v_struct *)malloc(size * sizeof(v_struct));
-    if ((read(input_fd,data,sizeof(around_point)*size)) > 0){
+    ll size = info.nx * info.ny * info.nz;
+    double *data = (double *)malloc(size * sizeof(double));
+    ll file_offset = info.x_start * info.tY * info.nz + info.y_start * info.nz + info.z_start;
+    ll result = lseek(input_fd, file_offset * sizeof(double), SEEK_SET);
+    if ((read(input_fd, data, sizeof(double) * size)) > 0){
         int i, j, k;
         ll size_cube = info.ny * info.nz;
-        ll size_all = info.tY * info.tZ;
-        int count = 0;
         for (i = 0; i < info.nx; i++){
             for (j = 0; j < info.ny; j++){
                 for (k = 0; k < info.nz; k++){
                     ll index_cube = i * size_cube + j * info.nz + k; //row number of cube
-                    ll index_all = (i + info.x_start) * size_all + (j + info.y_start) * info.tZ + k + info.z_start;
                     //fill into b in x y z order
-                    b[index_cube] = data[index_all].val;
+                    b[index_cube] = data[index_cube];
                 }
             }
         }
     } else {
         printf("read A file error!\n");
     }
+    free(data);
     close(input_fd);
 }
 
 void init_x(char *filename_x, Data_Info info){
     int input_fd = open(filename_x, O_RDONLY);
-    ll size = info.tX * info.tY * info.tZ;
-    v_struct *data = (v_struct *)malloc(size * sizeof(v_struct));
-    if ((read(input_fd,data,sizeof(around_point)*size)) > 0){
+    ll size = info.nx * info.ny * info.nz;
+    double *data = (double *)malloc(size * sizeof(double));
+    ll file_offset = info.x_start * info.tY * info.nz + info.y_start * info.nz + info.z_start;
+    ll result = lseek(input_fd, file_offset * sizeof(double), SEEK_SET);
+    if ((read(input_fd, data, sizeof(double) * size)) > 0){
         int i, j, k;
         ll size_cube = info.ny * info.nz;
-        ll size_all = info.tY * info.tZ;
         for (i = 0; i < info.nx; i++) {
             for (j = 0; j < info.ny; j++) {
                 for (k = 0; k < info.nz; k++) {
                     ll index_cube = i * size_cube + j * info.nz + k; //row number of cube
-                    ll index_all = (i + info.x_start) * size_all + (j + info.y_start) * info.tZ + k + info.z_start;
                     //fill into x_0 in x y z order
-                    x[index_cube] = data[index_all].val;
+                    x[index_cube] = data[index_cube];
                 }
             }
         }
@@ -462,6 +437,7 @@ void init_x(char *filename_x, Data_Info info){
     } else {
         printf("read A file error!\n");
     }
+    free(data);
     close(input_fd);
 }
 
@@ -794,15 +770,11 @@ void gcr(Data_Info info, int k){
 
         //计算alpha 需要allreduce, R 需要局部通讯-------------------------------
         double l_numerator = vector_dot(R, Ap_i, info.len_vb);
-        printf(" alpha numerator_l: %.30lf\n", l_numerator);
         double l_denominator = vector_dot(Ap_i, Ap_i, info.len_vb);
-        printf(" alpha denominator local: %.10lf\n", l_denominator);
         double denominator;
         MPI_Allreduce(&l_denominator, &denominator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         double numerator;
         MPI_Allreduce(&l_numerator, &numerator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-        printf(" alpha denominator: %.10lf\n", denominator);
-        printf(" alpha numerator: %.10lf\n", numerator);
         Ap_idot[steps % k] = denominator;
         double alpha = numerator / denominator;
         printf("cal alpha done, alpha: %.10lf\n", alpha);
@@ -876,7 +848,7 @@ void gcr(Data_Info info, int k){
             Ap_i[sub_i] = tmp_result;
         }
         printf("update Ap_i done\n");
-        if (steps == 150){
+        if (steps == 50){
             printf("failed \n");
             break;
         }
@@ -884,7 +856,6 @@ void gcr(Data_Info info, int k){
 }
 
 int main(int argc, char **argv) {
-    //MPI_Init(&argc, &argv);
     /*
     int NX = atoi(argv[1]);
     int NY = atoi(argv[2]);
@@ -903,28 +874,38 @@ int main(int argc, char **argv) {
     int PX = atoi(argv[1]);
     int PY = atoi(argv[2]);
     int PZ = atoi(argv[3]);
-    total_nodes = PX * PY * PZ;
-    char *filename_A = "./data/case_1bin/data_A.bin";
-    char *filename_x0 = "./data/case_1bin/data_x0.bin";
-    char *filename_b = "./data/case_1bin/data_b.bin";
+    char *filename_A = "./data/case_1bin/data_A_v1.bin";
+    char *filename_x0 = "./data/case_1bin/data_x0_v1.bin";
+    char *filename_b = "./data/case_1bin/data_b_v1.bin";
     if (PZ != 1){
         return 0;
     }
-    total_nodes = PX * PY * PZ;
-    Data_Info info = init_info(NX, NY, NZ, PX, PY, PZ);
-    //printf("init info done!\n");
-    init_A(filename_A, info);
-    //printf("init A done!\n");
-    init_b(filename_b, info);
-    //printf("init b done!\n");
-    init_x(filename_x0, info);
-    //printf("init x done!\n");
     struct timeval t1, t2;
+    struct timeval t3, t4;
+    Data_Info info = init_info(NX, NY, NZ, PX, PY, PZ);
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t3, NULL);
+    init_A(filename_A, info);
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t4, NULL);
+    if (info.myrank == 0) {
+        printf("file A time  %.6lf\n", TIME(t3, t4));
+    }
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t3, NULL);
+    init_b(filename_b, info);
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t4, NULL);
+    if (info.myrank == 0) {
+        printf("file b time  %.6lf\n", TIME(t3, t4));
+    }
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t3, NULL);
+    init_x(filename_x0, info);
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t4, NULL);
+    if (info.myrank == 0) {
+        printf("file x_0 time  %.6lf\n", TIME(t3, t4));
+    }
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t1, NULL);
     gcr(info, 5);
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
     if (info.myrank == 0) {
-        printf("Total time: %.6lf\n", TIME(t1, t2));
+        printf("gcr time: %.6lf\n", TIME(t1, t2));
     }
     MPI_Finalize();
     return 0;
