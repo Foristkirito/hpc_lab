@@ -562,7 +562,6 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows, double *M_diag){
         int end_j = A_ptr[i + 1];
         int j;
         double u_ii = get_value(i, i, M);
-        //double u_ii = 1;
         double tmp = R_hat[i];
         for (j = start_j; j < end_j; j++){
             int col_j = A_col[j];
@@ -574,26 +573,44 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows, double *M_diag){
     }
 }
 
+double avx_dot(double *A, double *B, int N) {
+    const int VECTOR_SIZE = 4;
 
-double vector_dot(double *vec1, double *vec2, int len){
-    double result = 0;
+    typedef double vec
+        __attribute__ ((vector_size (sizeof(double) * VECTOR_SIZE)));
+
+    vec temp = {0};
+
+    N /= VECTOR_SIZE;
+
+    vec *Av = (vec *)A;
+    vec *Bv = (vec *)B;
     int i;
-    for (i = 0; i < len; i+=2){
-        result += vec1[i] * vec2[i];
-        if (i + 1 < len){
-            result += vec1[i + 1] * vec2[i + 1];
-        }
+    for(i = 0; i < N; ++i) {
+        temp += *Av * *Bv;
+
+        Av++;
+        Bv++;
     }
-    return result;
+
+    union {
+      vec tempv;
+      double tempf[VECTOR_SIZE];
+    } u;
+
+    u.tempv = temp;
+
+    double dot = 0;
+    for(i = 0; i < VECTOR_SIZE; ++i) {
+        dot += u.tempf[i];
+    }
+    return dot;
 }
 
 void update_x(double *p_i, double alpha, int len){
     int i;
-    for (i = 0; i < len; i+=2){
+    for (i = 0; i < len; i++){
         x[i] = x[i] + alpha * p_i[i];
-        if(i + 1 < len){
-            x[i + 1] = x[i + 1] + alpha * p_i[i + 1];
-        }
     }
 }
 
@@ -774,8 +791,8 @@ void gcr(Data_Info info, int k){
     while(1){
 
         //计算alpha 需要allreduce, R 需要局部通讯-------------------------------
-        double l_numerator = vector_dot(R, Ap_i, info.len_vb);
-        double l_denominator = vector_dot(Ap_i, Ap_i, info.len_vb);
+        double l_numerator = avx_dot(R, Ap_i, info.len_vb);
+        double l_denominator = avx_dot(Ap_i, Ap_i, info.len_vb);
         double denominator;
         MPI_Allreduce(&l_denominator, &denominator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         double numerator;
@@ -796,6 +813,11 @@ void gcr(Data_Info info, int k){
         if (judge == 1){
             printf("step: %d, x get\n", steps);
             break;
+        } else {
+            if (steps == 18){
+                printf("failed\n");
+                break;
+            }
         }
         //开始更新R
         update_R(R, alpha, Ap_i, info.len_vb);
@@ -814,13 +836,12 @@ void gcr(Data_Info info, int k){
         for (sub_j = (steps / k) * k; sub_j <= steps; sub_j++){
             //计算分子的点积, 需要allreduce-------------------------
             double *Ap_j = Ap + (sub_j % k) * info.len_vb;
-            l_numerator = vector_dot(mid_result, Ap_j, info.len_vb);
+            l_numerator = avx_dot(mid_result, Ap_j, info.len_vb);
             MPI_Allreduce(&l_numerator, &numerator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
             denominator = Ap_idot[sub_j % k];
             beta[sub_j % k] = -numerator / denominator;
         }
         // 开始更新p_i
-
         steps++;
         p_i = p + (steps % k) * info.len_vb;
         int sub_i;
@@ -852,10 +873,7 @@ void gcr(Data_Info info, int k){
         }
 
         //printf("update Ap_i done\n");
-        if (steps == 19){
-            printf("failed \n");
-            break;
-        }
+
     }
     free(R);
     free(R_hat);
@@ -867,28 +885,24 @@ void gcr(Data_Info info, int k){
 }
 
 int main(int argc, char **argv) {
-    /*
-    int NX = atoi(argv[1]);
-    int NY = atoi(argv[2]);
-    int NZ = atoi(argv[3]);
-
-    char *filename_A = argv[7];
-    char *filename_x0 = argv[8];
-    char *filename_b = argv[9];
-     */
     int nprocs;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     omp_set_num_threads(CORES);
-    int NX = 360;
-    int NY = 180;
-    int NZ = 38;
     int PX = atoi(argv[1]);
     int PY = atoi(argv[2]);
     int PZ = atoi(argv[3]);
+    int NX = atoi(argv[4]);;
+    int NY = atoi(argv[5]);;
+    int NZ = atoi(argv[6]);;
+    char *filename_A = argv[7];
+    char *filename_x0 = argv[8];
+    char *filename_b = argv[9];
+    /*
     char *filename_A = "./data/case_1bin/data_A_v1.bin";
     char *filename_x0 = "./data/case_1bin/data_x0_v1.bin";
     char *filename_b = "./data/case_1bin/data_b_v1.bin";
+    */
     if (PZ != 1){
         return 0;
     }
