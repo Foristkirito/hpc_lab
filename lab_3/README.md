@@ -22,7 +22,7 @@
 
 对于预处理，使用的是不完全 `LU` 分解，`ILU(0)`。具体算法如下:
 
-<img src="al_pre.png" width="500" height="190" />
+<img src="al_pre.png" />
 
 #### 求解 $\hat{R}$ 的算法
 
@@ -33,14 +33,14 @@ $$
 
 借助上三角以及下三角矩阵的良好性质，可以很方便的求解，具体算法如下：
 
-<img src="al_r_hat.png" width="500" height="127" />
+<img src="al_r_hat.png"/>
 
 #### 求解方程的算法
 
 求解方程使用的广义于差法，具体算法如下：
 
 
-<img src="al_all.png" width="500" height="321" />
+<img src="al_all.png" />
 
 ### <a name="detail"></a> 实现细节
 
