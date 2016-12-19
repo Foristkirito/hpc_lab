@@ -8,6 +8,7 @@
 
 #define TIME(a, b) (1.0*((b).tv_sec-(a).tv_sec)+0.000001*((b).tv_usec-(a).tv_usec))
 #define CORES 4
+const int VECTOR_SIZE = 4;
 typedef long long ll;
 typedef struct {
   int myrank;
@@ -574,7 +575,7 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows, double *M_diag){
 }
 
 double avx_dot(double *A, double *B, int N) {
-    const int VECTOR_SIZE = 4;
+
 
     typedef double vec
         __attribute__ ((vector_size (sizeof(double) * VECTOR_SIZE)));
@@ -588,7 +589,6 @@ double avx_dot(double *A, double *B, int N) {
     int i;
     for(i = 0; i < N; ++i) {
         temp += *Av * *Bv;
-
         Av++;
         Bv++;
     }
