@@ -32,7 +32,7 @@ typedef struct {
   int end_y;
   int offset_z;
   int end_z;
-  int nx;x
+  int nx;
   int ny;
   int nz;
   int x_par;
@@ -225,7 +225,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_j;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (static)
             for (j = 0; j < ny; j++){
                 tmp_cube_j = tmp_cube_i + j * nz;
                 for (k = 0; k < nz; k++){
@@ -248,7 +248,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_j + i * size_yz;
                 for (k = 0; k < nz; k++){
@@ -272,7 +272,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_j;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (static)
             for (j = 0; j < ny; j++){
                 tmp_cube_j = tmp_cube_i + j * nz;
                 for (k = 0; k < nz; k++){
@@ -295,7 +295,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_j + i * size_yz;
                 for (k = 0; k < nz; k++){
@@ -316,7 +316,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_k + i * size_yz;
                 for (j = 0; j < ny; j++){
@@ -338,7 +338,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++) {
                 tmp_cube_i = tmp_cube_k + i * size_yz;
                 for (j = 0; j < ny; j++) {
@@ -362,7 +362,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
         ll tmp_index;
         double r;
         double sum;
-        #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, sum) schedule (dynamic)
+        #pragma omp parallel for private(tmp_i, tmp_j, tmp_index, r, sum) schedule (static)
         for (i = 0; i < nx; i++){
             tmp_i = i * size_yz;
             for (j = 0; j < ny; j++){
@@ -413,7 +413,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_j;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (static)
             for (j = 0; j < ny; j++){
                 tmp_cube_j = tmp_cube_i + j * nz;
                 for (k = 0; k < nz; k++){
@@ -427,7 +427,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i = i * size_yz;
             int tmp_cube_j;
             int cube_index;
-            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (static)
             for (j = 0; j < ny; j++){
                 tmp_cube_j = tmp_cube_i + j * nz;
                 for (k = 0; k < nz; k++){
@@ -449,7 +449,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_j + i * size_yz;
                 for (k = 0; k < nz; k++){
@@ -464,7 +464,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_j = j * nz;
             int tmp_cube_i;
             int cube_index;
-            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_j + i * size_yz;
                 for (k = 0; k < nz; k++){
@@ -484,7 +484,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_j;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_j, cube_index, count) schedule (static)
             for (j = 0; j < ny; j++){
                 tmp_cube_j = tmp_cube_i + j * nz;
                 for (k = 0; k < nz; k++){
@@ -498,7 +498,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i = i * size_yz;
             int tmp_cube_j;
             int cube_index;
-            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (static)
             for (j = 0; j < ny; j++){
                 tmp_cube_j = tmp_cube_i + j * nz;
                 for (k = 0; k < nz; k++){
@@ -516,7 +516,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_j + i * size_yz;
                 for (k = 0; k < nz; k++){
@@ -530,7 +530,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_j = j * nz;
             int tmp_cube_i;
             int cube_index;
-            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_j, cube_index) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_j + i * size_yz;
                 for (k = 0; k < nz; k++){
@@ -548,7 +548,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_k + i * size_yz;
                 for (j = 0; j < ny; j++){
@@ -562,7 +562,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_k = k;
             int tmp_cube_i;
             int cube_index;
-            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_k + i * size_yz;
                 for (j = 0; j < ny; j++){
@@ -581,7 +581,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_i;
             int cube_index;
             int count;
-            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index, count) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_k + i * size_yz;
                 for (j = 0; j < ny; j++){
@@ -595,7 +595,7 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
             int tmp_cube_k = k;
             int tmp_cube_i;
             int cube_index;
-            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (dynamic)
+            #pragma omp parallel for private(tmp_cube_i, cube_index) schedule (static)
             for (i = 0; i < nx; i++){
                 tmp_cube_i = tmp_cube_k + i * size_yz;
                 for (j = 0; j < ny; j++){
@@ -621,11 +621,10 @@ int stencil(double *A, Info info, int steps, int NX, int NY, int NZ) {
 }
 
 int main(int argc, char **argv) {
-    omp_set_num_threads(24);
     double *A = NULL;
     double *send_buffer;// store the data to be send, 6 segments, not all are used
     int myrank, nprocs;
-    int NX = 100, NY = 100, NZ = 100, STEPS = 10;
+    int NX, NY, NZ, STEPS;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     //printf("mpi size %d \n", nprocs);
@@ -664,4 +663,5 @@ int main(int argc, char **argv) {
 
     printf("all done!\n");
     MPI_Finalize();
+
 }

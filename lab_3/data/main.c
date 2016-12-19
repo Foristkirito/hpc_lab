@@ -24,12 +24,14 @@ typedef struct{
 typedef long long ll;
 
 int main(){
-    int NX = 360;
-    int NY = 180;
+    int NX = 720;
+    int NY = 360;
     int NZ = 38;
-    int size = NX * NY * NZ;
+    ll size = NX * NY * NZ;
 
-    char file_name[100] = "./case_360x180x38/A.txt";
+
+    /*
+    char file_name[100] = "./case_720x360x38/A.txt";
     FILE *fp=fopen(file_name,"r");
     if(fp==NULL){
         printf("can not open file!\n");
@@ -38,9 +40,9 @@ int main(){
     double *data = (double *)malloc(size * 19 * sizeof(double));
     int i,j,k,num;
     double val;
-    int index = 0;
-    int sub_index;
-    int count = 0;
+    ll index = 0;
+    ll sub_index;
+    ll count = 0;
     printf("begin to deal \n");
     for (;index < size; index++){
         for (sub_index = 0; sub_index < 19; sub_index++){
@@ -59,7 +61,7 @@ int main(){
         count++;
     }
     fclose(fp);
-    FILE *fw=fopen("data_A_v1.bin","wb");
+    FILE *fw=fopen("./case_2bin/data_A_v1.bin","wb");
     if(fw==NULL){
         printf("can't open the write file\n");
         exit(0);
@@ -67,9 +69,10 @@ int main(){
     fwrite(data, sizeof(double), size * 19, fw);
     fclose(fw);
     free(data);
+    */
 
-    /*
-    char file_name[100] = "./case_360x180x38/b.txt";
+
+    char file_name[100] = "./case_720x360x38/x0.txt";
     FILE *fp=fopen(file_name,"r");
     if(fp==NULL){
         printf("can not open file!\n");
@@ -78,8 +81,8 @@ int main(){
     double *data = (double *)malloc(size * sizeof(double));
     int i,j,k;
     double val;
-    int index = 0;
-    int count = 0;
+    ll index = 0;
+    ll count = 0;
     printf("begin to deal \n");
     for (;index < size; index++){
         fscanf(fp,"%d",&i);
@@ -94,7 +97,7 @@ int main(){
         }
     }
     fclose(fp);
-    FILE *fw=fopen("./case_1bin/data_b_v1.bin","wb");
+    FILE *fw=fopen("./case_2bin/data_x0_v1.bin","wb");
     if(fw==NULL){
         printf("can't open the write file\n");
         exit(0);
@@ -102,6 +105,6 @@ int main(){
     fwrite(data, sizeof(double), size, fw);
     fclose(fw);
     free(data);
-     */
+
     return 0;
 }

@@ -7,8 +7,11 @@
 #include <mpi.h>
 
 #define TIME(a, b) (1.0*((b).tv_sec-(a).tv_sec)+0.000001*((b).tv_usec-(a).tv_usec))
-#define CORES 4
+#define RST 0.000067247278541769
+
+
 const int VECTOR_SIZE = 4;
+const int k = 5;
 typedef double vec
     __attribute__ ((vector_size (sizeof(double) * VECTOR_SIZE)));
 typedef long long ll;
@@ -47,7 +50,6 @@ int *A_ptr;
 double *b; // partial b
 double *x; // partial x, recieve buffer is behind the local x
 double *send_buffer;//store the data to send, 8 segments, not all are used
-int *g_map;//map behind index to global index
 MPI_Request recv_request[8]; // receive request to check needed data has been received. not all are used
 MPI_Request send_request[8]; // send requets
 int buffer_offset[8]; // the start index of par i to send
@@ -417,15 +419,20 @@ void init_x(char *filename_x, Data_Info info){
 
 void A_m_vector(double * vector, int mrow, int mcol, double * result){
     int i, j;
-    for (i = 0; i < mrow; i++){
-        int j_start = A_ptr[i];
-        int j_end = A_ptr[i + 1];
-        double tmp = 0;
-        for (j = j_start; j < j_end; j++){
-            tmp += A_value[j] * vector[A_col[j]];
+    #pragma omp parallel private(i, j)
+    {
+        #pragma omp for schedule(static)
+        for (i = 0; i < mrow; i++){
+            int j_start = A_ptr[i];
+            int j_end = A_ptr[i + 1];
+            double tmp = 0;
+            for (j = j_start; j < j_end; j++){
+                tmp += A_value[j] * vector[A_col[j]];
+            }
+            result[i] = tmp;
         }
-        result[i] = tmp;
     }
+
 }
 
 void ILU_0(double *M, int rows){
@@ -536,9 +543,7 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows){
 
 double avx_dot(double *A, double *B, int N) {
     vec temp = {0};
-
-    N /= VECTOR_SIZE;
-
+    N >>=2;
     vec *Av = (vec *)A;
     vec *Bv = (vec *)B;
     int i;
@@ -547,10 +552,9 @@ double avx_dot(double *A, double *B, int N) {
         Av++;
         Bv++;
     }
-
     union {
       vec tempv;
-      double tempf[VECTOR_SIZE];
+      double tempf[4];
     } u;
 
     u.tempv = temp;
@@ -564,9 +568,14 @@ double avx_dot(double *A, double *B, int N) {
 
 void update_x(double *p_i, double alpha, int len){
     int i;
-    for (i = 0; i < len; i++){
-        x[i] = x[i] + alpha * p_i[i];
+    #pragma omp parallel private(i)
+    {
+        #pragma omp for schedule(static)
+        for (i = 0; i < len; i++){
+            x[i] = x[i] + alpha * p_i[i];
+        }
     }
+
 }
 
 int check_x(int rows){
@@ -588,7 +597,7 @@ int check_x(int rows){
     double g_sum;
     MPI_Allreduce(&sum, &g_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     g_sum = sqrt(g_sum);
-    if (g_sum < 0.000018789184606079){
+    if (g_sum < RST){
         return 1;
     } else {
         return 0;
@@ -597,9 +606,14 @@ int check_x(int rows){
 
 void update_R(double *R, double alpha, double *Ap_i, int len){
     int i;
-    for (i = 0; i < len; i++){
-        R[i] = R[i] - alpha * Ap_i[i];
+    #pragma omp parallel private(i)
+    {
+        #pragma omp for schedule(static)
+        for (i = 0; i < len; i++){
+            R[i] = R[i] - alpha * Ap_i[i];
+        }
     }
+
 }
 
 void send_data(double *vector, int nx, int ny, int nz, int myrank){
@@ -612,25 +626,34 @@ void send_data(double *vector, int nx, int ny, int nz, int myrank){
     int end_y[8] =   {1, ny, ny, ny, ny, ny, 1, 1};
     int side;
 
-    for (side = 0; side < 8; side++){
-        if (myrank != node_rank[side]){
-            // 需要发送
-            double *start_index = send_buffer + buffer_offset[side];
-            int count = 0;
-            for (i = start_x[side]; i < end_x[side]; i++){
-                for (j = start_y[side]; j < end_y[side]; j++){
-                    for (k = 0; k < nz; k++){
-                        int index = i * size_yz + j * nz + k;
-                        start_index[count] = vector[index];
-                        count++;
+    #pragma omp parallel private(i, j, k, side)
+    {
+        #pragma omp for schedule(static)
+        for (side = 0; side < 8; side++){
+            if (myrank != node_rank[side]){
+                // 需要发送
+                int count = 0;
+                double *start_index = send_buffer + buffer_offset[side];
+                for (i = start_x[side]; i < end_x[side]; i++){
+                    for (j = start_y[side]; j < end_y[side]; j++){
+                        for (k = 0; k < nz; k++){
+                            int index = i * size_yz + j * nz + k;
+                            start_index[count] = vector[index];
+                            count++;
+                        }
                     }
                 }
             }
-            // send data
-            MPI_Isend(start_index, node_dsize[side], MPI_DOUBLE, node_rank[side], target_side[side], MPI_COMM_WORLD, &send_request[side]);
-            //printf("send ------ side : %d, node_dsize : %d, target side : %d\n", side, node_dsize[side], target_side[side]);
         }
     }
+
+
+    for (side = 0; side < 8; side++){
+        // send data
+        double *start_index = send_buffer + buffer_offset[side];
+        MPI_Isend(start_index, node_dsize[side], MPI_DOUBLE, node_rank[side], target_side[side], MPI_COMM_WORLD, &send_request[side]);
+    }
+
 }
 
 void recv_data(double *vector, int myrank){
@@ -654,9 +677,7 @@ void wait_recv(int myrank){
     }
 }
 
-void gcr(Data_Info info, int k){
-
-    //printf("begin to cal gcr\n");
+void gcr(Data_Info info){
     //init data
     double *R = (double *) malloc(info.len_x * sizeof(double));
     double *R_hat = (double *) malloc(info.len_x * sizeof(double)); // receive buffer is behind local values
@@ -730,7 +751,7 @@ void gcr(Data_Info info, int k){
             printf("step: %d, x get\n", steps);
             break;
         } else {
-            if (steps == 18){
+            if (steps == 30){
                 printf("failed\n");
                 break;
             }
@@ -761,6 +782,7 @@ void gcr(Data_Info info, int k){
         steps++;
         p_i = p + (steps % k) * info.len_vb;
         int sub_i;
+
         for (sub_i = 0; sub_i < info.len_vb; sub_i++){
             int last_step = steps - 1;
             double tmp_result = 0;
@@ -772,11 +794,12 @@ void gcr(Data_Info info, int k){
             }
             p_i[sub_i] = tmp_result;
         }
+
+
         //printf("updtae p done\n");
         //开始更新 Ap_i
         Ap_i = Ap + (steps % k) * info.len_vb;
         int last_step = steps - 1;
-        //#pragma omp parallel for private(sub_i) schedule(static,seg)
         for (sub_i = 0; sub_i < info.len_vb; sub_i++){
             double tmp_result = 0;
             tmp_result += mid_result[sub_i];
@@ -787,6 +810,7 @@ void gcr(Data_Info info, int k){
             }
             Ap_i[sub_i] = tmp_result;
         }
+
 
         //printf("update Ap_i done\n");
 
@@ -803,7 +827,6 @@ int main(int argc, char **argv) {
     int nprocs;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-    omp_set_num_threads(CORES);
     int PX = atoi(argv[1]);
     int PY = atoi(argv[2]);
     int PZ = atoi(argv[3]);
@@ -813,11 +836,6 @@ int main(int argc, char **argv) {
     char *filename_A = argv[7];
     char *filename_x0 = argv[8];
     char *filename_b = argv[9];
-    /*
-    char *filename_A = "./data/case_1bin/data_A_v1.bin";
-    char *filename_x0 = "./data/case_1bin/data_x0_v1.bin";
-    char *filename_b = "./data/case_1bin/data_b_v1.bin";
-    */
     if (PZ != 1){
         return 0;
     }
@@ -843,11 +861,17 @@ int main(int argc, char **argv) {
         printf("file x_0 time  %.6lf\n", TIME(t3, t4));
     }
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t1, NULL);
-    gcr(info, 5);
+    gcr(info);
     MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
     if (info.myrank == 0) {
         printf("gcr time: %.6lf\n", TIME(t1, t2));
     }
+    free(A_value);
+    free(A_col);
+    free(A_ptr);
+    free(b);
+    free(x);
+    free(send_buffer);
     MPI_Finalize();
     return 0;
 }
