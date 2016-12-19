@@ -644,16 +644,6 @@ void recv_data(double *vector, int myrank){
     }
 }
 
-void wait_send(int myrank){
-    int side;
-    MPI_Status status;
-    for (side = 0; side < 8; side++){
-        if (node_rank[side] != myrank){
-            MPI_Wait(&send_request[side], &status);
-        }
-    }
-}
-
 void wait_recv(int myrank){
     int side;
     MPI_Status status;
@@ -670,7 +660,6 @@ void gcr(Data_Info info, int k){
     //init data
     double *R = (double *) malloc(info.len_x * sizeof(double));
     double *R_hat = (double *) malloc(info.len_x * sizeof(double)); // receive buffer is behind local values
-    memset(R_hat, 0, info.len_x * sizeof(double));
     double *Ap = (double *) malloc(k * info.len_vb * sizeof(double));
     double *p = (double *) malloc(k * info.len_vb * sizeof(double));
     double *M = (double *) malloc(info.len_vb * 19 * sizeof(double));
@@ -685,7 +674,6 @@ void gcr(Data_Info info, int k){
     recv_data(recv_start, info.myrank);
     //waite recv done
     wait_recv(info.myrank);
-    check_x(info.len_vb);
 
     A_m_vector(x, info.len_vb, info.len_x, R); //ok
 
@@ -693,7 +681,6 @@ void gcr(Data_Info info, int k){
     for (i = 0; i < info.len_vb; i++){
         R[i] = b[i] - R[i];
     }
-    //check_R(info.len_vb, R);
     //init M
     ILU_0(M, info.len_vb);
     // get r hat
@@ -716,8 +703,8 @@ void gcr(Data_Info info, int k){
     double beta[10];// k最大为10
     double Ap_idot[10];// k最大为10
     //printf("begin to iterate\n");
-    Ap_i = Ap + (steps % k) * info.len_vb;
-    p_i = p + (steps % k) * info.len_vb;
+    Ap_i = Ap;
+    p_i = p;
     while(1){
 
         //计算alpha 需要allreduce, R 需要局部通讯-------------------------------
@@ -731,7 +718,6 @@ void gcr(Data_Info info, int k){
         double alpha = numerator / denominator;
         //开始更新 x, 不需要进行通讯
         update_x(p_i, alpha, info.len_vb);
-        //printf("update x done\n");
         //开始check需要进行通讯---------------------
         send_data(x, info.nx, info.ny, info.nz, info.myrank);
         recv_start = x + info.len_vb;
