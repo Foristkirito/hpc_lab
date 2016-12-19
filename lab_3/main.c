@@ -7,6 +7,7 @@
 #include <mpi.h>
 
 #define TIME(a, b) (1.0*((b).tv_sec-(a).tv_sec)+0.000001*((b).tv_usec-(a).tv_usec))
+#define CORES 4
 typedef long long ll;
 typedef struct {
   int myrank;
@@ -470,8 +471,11 @@ double get_value(int i, int j, double *matrix){
     return 0;
 }
 
-void ILU_0(double *M, int rows){
+void ILU_0(double *M, int rows, double *M_diag){
     //只做方阵
+    double j_row_V[30];
+    int j_row_col[30];
+    int j_count;
     int i;
     for (i = 0; i < rows; i++){
         int tmp_pos;
@@ -482,28 +486,59 @@ void ILU_0(double *M, int rows){
             if (j > i - 1){
                 break;
             }
-            double a_jj = get_value(j, j, M);
+            double a_jj;
+            //-------
+            j_count = 0;
+            int start_pos_j = A_ptr[j];
+            int end_pos_j = A_ptr[j + 1];
+            int tmp_a_j;
+            for (tmp_a_j = start_pos_j; tmp_a_j < end_pos_j; tmp_a_j++){
+                int tmp_j_col = A_col[tmp_a_j];
+                double val_j = M[tmp_a_j];
+                if(tmp_j_col >= rows){
+                    break;
+                }
+                j_row_V[j_count] = val_j;
+                j_row_col[j_count] = tmp_j_col;
+                j_count++;
+                if(tmp_j_col == j){
+                    a_jj = val_j;
+                }
+            }
             double a_ij = M[tmp_pos];
             a_ij = a_ij / a_jj;
             M[tmp_pos] = a_ij;
             int tmp_jpos;
+            int j_row_search = 0;
             for(tmp_jpos = tmp_pos + 1; tmp_jpos < end_pos; tmp_jpos++){
                 int k = A_col[tmp_jpos];
-                if (k >= rows){
+                if (k < rows && j_row_search < j_count){
                     //只使用方阵
+                    while(j_row_search < j_count){
+                        if(k == j_row_col[j_row_search]){
+                            double a_jk = j_row_V[j_row_search];
+                            double a_ik = M[tmp_jpos];
+                            a_ik = a_ik - a_ij * a_jk;
+                            M[tmp_jpos] = a_ik;
+                            j_row_search++;
+                            break;
+                        } else {
+                            if (k > j_row_col[j_row_search]){
+                                j_row_search++;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                } else {
                     break;
                 }
-                double a_ik = M[tmp_jpos];
-
-                a_ik = a_ik - a_ij * get_value(j, k, M);
-                M[tmp_jpos] = a_ik;
-
             }
         }
     }
 }
 
-void ilu_solver(double *R, double *M, double *R_hat, int rows){
+void ilu_solver(double *R, double *M, double *R_hat, int rows, double *M_diag){
     int i;
     // 第一轮
     for (i = 0; i < rows; i++){
@@ -527,6 +562,7 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows){
         int end_j = A_ptr[i + 1];
         int j;
         double u_ii = get_value(i, i, M);
+        //double u_ii = 1;
         double tmp = R_hat[i];
         for (j = start_j; j < end_j; j++){
             int col_j = A_col[j];
@@ -542,16 +578,22 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows){
 double vector_dot(double *vec1, double *vec2, int len){
     double result = 0;
     int i;
-    for (i = 0; i < len; i++){
+    for (i = 0; i < len; i+=2){
         result += vec1[i] * vec2[i];
+        if (i + 1 < len){
+            result += vec1[i + 1] * vec2[i + 1];
+        }
     }
     return result;
 }
 
 void update_x(double *p_i, double alpha, int len){
     int i;
-    for (i = 0; i < len; i++){
+    for (i = 0; i < len; i+=2){
         x[i] = x[i] + alpha * p_i[i];
+        if(i + 1 < len){
+            x[i + 1] = x[i + 1] + alpha * p_i[i + 1];
+        }
     }
 }
 
@@ -564,7 +606,6 @@ int check_x(int s, int rows, int myrank, Data_Info info){
         int start_j = A_ptr[i];
         int end_j = A_ptr[i + 1];
         double b_i = b[i];
-        //double b_i = 0;
         double Ax_i = 0;
         for (j = start_j; j < end_j; j++){
             Ax_i += A_value[j] * x[A_col[j]];
@@ -573,37 +614,13 @@ int check_x(int s, int rows, int myrank, Data_Info info){
     }
 
     double g_sum;
-    if(myrank == 0){
-        printf("sum : %.10lf \n", sum);
-    }
     MPI_Allreduce(&sum, &g_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     g_sum = sqrt(g_sum);
-    if(myrank == 0){
-        printf("g_sum : %.10lf \n", g_sum);
-    }
     if (g_sum < 0.000018789184606079){
         return 1;
     } else {
         return 0;
     }
-}
-
-void check_R(int rows, double *R){
-    int i;
-    double tmp = 0;
-    for (i = 0; i < rows ; i++){
-        tmp += R[i] * R[i];
-    }
-}
-
-void check_P(int rows, double *P){
-    int i;
-    double tmp = 0;
-    for (i = 0; i < rows ; i++){
-        tmp += P[i] * P[i];
-    }
-    tmp = sqrt(tmp);
-    //printf("P sum : %.10lf \n", tmp);
 }
 
 void update_R(double *R, double alpha, double *Ap_i, int len){
@@ -675,25 +692,8 @@ void wait_recv(int myrank){
     }
 }
 
-void print_r_hat(double *v, int len){
-    int i;
-    for(i = 0; i < len; i++){
-        printf("rows : %d, R_hat : %.20lf \n", i, v[i]);
-    }
-}
-
-void check_sum_p(double *p, int len){
-    int i;
-    double tmp = 0;
-    for (i = 0; i < len; i++){
-        tmp += p[i] * p[i];
-    }
-    double g_sum;
-    MPI_Allreduce(&tmp, &g_sum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    printf("---------------------check sum : %.10lf \n", g_sum);
-}
-
 void gcr(Data_Info info, int k){
+
     //printf("begin to cal gcr\n");
     //init data
     double *R = (double *) malloc(info.len_x * sizeof(double));
@@ -724,6 +724,7 @@ void gcr(Data_Info info, int k){
         printf("mid_result null \n");
     }
     double * recv_start;
+    double *M_diag = (double *) malloc(info.len_vb * sizeof(double));//store diagonal data A
     //init R
     //ssend and receive x
     send_data(x, info.nx, info.ny, info.nz, info.myrank);
@@ -741,11 +742,15 @@ void gcr(Data_Info info, int k){
     }
     //check_R(info.len_vb, R);
     //init M
-
-    ILU_0(M, info.len_vb);
-
+    struct timeval t1, t2;
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t1, NULL);
+    ILU_0(M, info.len_vb, M_diag);
+    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
+    if (info.myrank == 0) {
+        printf("ILU get M: %.6lf\n", TIME(t1, t2));
+    }
     // get r hat
-    ilu_solver(R, M, R_hat, info.len_vb);
+    ilu_solver(R, M, R_hat, info.len_vb, M_diag);
 
     // init p_0
     memcpy(p, R_hat, info.len_vb * sizeof(double));
@@ -777,7 +782,6 @@ void gcr(Data_Info info, int k){
         MPI_Allreduce(&l_numerator, &numerator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         Ap_idot[steps % k] = denominator;
         double alpha = numerator / denominator;
-        printf("cal alpha done, alpha: %.10lf\n", alpha);
         //开始更新 x, 不需要进行通讯
         update_x(p_i, alpha, info.len_vb);
         //printf("update x done\n");
@@ -788,18 +792,15 @@ void gcr(Data_Info info, int k){
         //waite recv done
         wait_recv(info.myrank);
         int judge = check_x(0, info.len_vb, info.myrank, info);
-
         //printf("check x done\n");
         if (judge == 1){
             printf("step: %d, x get\n", steps);
             break;
-        } else {
-            printf("step: %d, not converge\n", steps);
         }
         //开始更新R
         update_R(R, alpha, Ap_i, info.len_vb);
         //跟新 R_hat 不需要通讯
-        ilu_solver(R, M, R_hat, info.len_vb);
+        ilu_solver(R, M, R_hat, info.len_vb, M_diag);
         //R_hat = R;
         // 开始计算beta
         int sub_j;
@@ -819,6 +820,7 @@ void gcr(Data_Info info, int k){
             beta[sub_j % k] = -numerator / denominator;
         }
         // 开始更新p_i
+
         steps++;
         p_i = p + (steps % k) * info.len_vb;
         int sub_i;
@@ -836,8 +838,9 @@ void gcr(Data_Info info, int k){
         //printf("updtae p done\n");
         //开始更新 Ap_i
         Ap_i = Ap + (steps % k) * info.len_vb;
+        int last_step = steps - 1;
+        //#pragma omp parallel for private(sub_i) schedule(static,seg)
         for (sub_i = 0; sub_i < info.len_vb; sub_i++){
-            int last_step = steps - 1;
             double tmp_result = 0;
             tmp_result += mid_result[sub_i];
             for (sub_j = (last_step / k) * k; sub_j <= last_step; sub_j++){
@@ -847,12 +850,20 @@ void gcr(Data_Info info, int k){
             }
             Ap_i[sub_i] = tmp_result;
         }
-        printf("update Ap_i done\n");
-        if (steps == 50){
+
+        //printf("update Ap_i done\n");
+        if (steps == 19){
             printf("failed \n");
             break;
         }
     }
+    free(R);
+    free(R_hat);
+    free(Ap);
+    free(p);
+    free(M);
+    free(mid_result);
+    free(M_diag);
 }
 
 int main(int argc, char **argv) {
@@ -868,6 +879,7 @@ int main(int argc, char **argv) {
     int nprocs;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+    omp_set_num_threads(CORES);
     int NX = 360;
     int NY = 180;
     int NZ = 38;

@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH -J foristkirito
-#SBATCH -n 8
-#SBATCH -N 8
-#SBATCH -c 24
-#SBATCH -w cn05,cn06,cn07,cn08,cn09,cn10,cn11,cn12
+#SBATCH -n 10
+#SBATCH -N 10
+#SBATCH -c 2
+#SBATCH -w cn03,cn04,cn05,cn06,cn07,cn08,cn09,cn10,cn11,cn12
 #SBATCH -t 00:1:00
 #SBATCH -o out_9
 #SBATCH -p batch
 unset I_MPI_PMI_LIBRARY
 mpiexec.hydra -bootstrap slurm -l \
   -genv KMP_AFFINITY compact \
- ./main 4 2 1
+ ./main 2 5 1
