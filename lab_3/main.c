@@ -9,6 +9,8 @@
 #define TIME(a, b) (1.0*((b).tv_sec-(a).tv_sec)+0.000001*((b).tv_usec-(a).tv_usec))
 #define CORES 4
 const int VECTOR_SIZE = 4;
+typedef double vec
+    __attribute__ ((vector_size (sizeof(double) * VECTOR_SIZE)));
 typedef long long ll;
 typedef struct {
   int myrank;
@@ -362,36 +364,6 @@ void init_A(char *filename_A, Data_Info info){
     close(input_fd);
 }
 
-void printf_x(Data_Info info){
-    int i, j, k;
-    //send side 0
-    int nx = info.nx;
-    int ny = info.ny;
-    int nz = info.nz;
-    int myrank = info.myrank;
-    int size_yz = ny * nz;
-    int start_x[8] = {0, 0, 0, 0, nx - 1, nx - 1, nx - 1, 0};
-    int end_x[8] =   {1, 1, 1, nx, nx, nx, nx, nx};
-    int start_y[8] = {0, 0, ny - 1, ny - 1, ny - 1, 0, 0, 0};
-    int end_y[8] =   {1, ny, ny, ny, ny, ny, 1, 1};
-    int side;
-    int size = info.nx * info.ny * info.nz;
-    int count = 0;
-    for (side = 0; side < 8; side++){
-        // 需要发送
-        printf("-------------side %d \n", side);
-        for (i = start_x[side]; i < end_x[side]; i++){
-            for (j = start_y[side]; j < end_y[side]; j++){
-                for (k = 0; k < nz; k++){
-                    double val = x[count + size];
-                    printf("side %d, i : %d, j : %d, k : %d, col : %d, val : %.10lf \n", side, i, j, k, count + size, val);
-                    count++;
-                }
-            }
-        }
-    }
-}
-
 void init_b(char *filename_b, Data_Info info){
     int input_fd = open(filename_b, O_RDONLY);
     ll size = info.nx * info.ny * info.nz;
@@ -456,23 +428,7 @@ void A_m_vector(double * vector, int mrow, int mcol, double * result){
     }
 }
 
-double get_value(int i, int j, double *matrix){
-    int start_j = A_ptr[i];
-    int end_j = A_ptr[i + 1];
-    int index;
-    for (index = start_j; index < end_j; index++){
-        if (A_col[index] == j){
-            return matrix[index];
-        } else {
-            if (A_col[index] > j){
-                return 0;
-            }
-        }
-    }
-    return 0;
-}
-
-void ILU_0(double *M, int rows, double *M_diag){
+void ILU_0(double *M, int rows){
     //只做方阵
     double j_row_V[30];
     int j_row_col[30];
@@ -539,7 +495,7 @@ void ILU_0(double *M, int rows, double *M_diag){
     }
 }
 
-void ilu_solver(double *R, double *M, double *R_hat, int rows, double *M_diag){
+void ilu_solver(double *R, double *M, double *R_hat, int rows){
     int i;
     // 第一轮
     for (i = 0; i < rows; i++){
@@ -562,12 +518,16 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows, double *M_diag){
         int start_j = A_ptr[i];
         int end_j = A_ptr[i + 1];
         int j;
-        double u_ii = get_value(i, i, M);
+        double u_ii;
         double tmp = R_hat[i];
         for (j = start_j; j < end_j; j++){
             int col_j = A_col[j];
             if (col_j > i && col_j < rows){
                 tmp -= M[j] * R_hat[col_j];
+            } else {
+                if (col_j == i){
+                    u_ii = M[j];
+                }
             }
         }
         R_hat[i] = tmp / u_ii;
@@ -575,11 +535,6 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows, double *M_diag){
 }
 
 double avx_dot(double *A, double *B, int N) {
-
-
-    typedef double vec
-        __attribute__ ((vector_size (sizeof(double) * VECTOR_SIZE)));
-
     vec temp = {0};
 
     N /= VECTOR_SIZE;
@@ -614,12 +569,12 @@ void update_x(double *p_i, double alpha, int len){
     }
 }
 
-int check_x(int s, int rows, int myrank, Data_Info info){
+int check_x(int rows){
     //需要进行 局部通讯以及 allreduce
     int i, j;
     double sum = 0;
 
-    for (i = s; i < rows; i++){
+    for (i = 0; i < rows; i++){
         int start_j = A_ptr[i];
         int end_j = A_ptr[i + 1];
         double b_i = b[i];
@@ -714,34 +669,15 @@ void gcr(Data_Info info, int k){
     //printf("begin to cal gcr\n");
     //init data
     double *R = (double *) malloc(info.len_x * sizeof(double));
-    if (R == NULL){
-        printf("R null \n");
-    }
     double *R_hat = (double *) malloc(info.len_x * sizeof(double)); // receive buffer is behind local values
-    if (R_hat == NULL){
-        printf("R_hat null \n");
-    }
     memset(R_hat, 0, info.len_x * sizeof(double));
     double *Ap = (double *) malloc(k * info.len_vb * sizeof(double));
-    if (Ap == NULL){
-        printf("Ap null \n");
-    }
     double *p = (double *) malloc(k * info.len_vb * sizeof(double));
-    if (p == NULL){
-        printf("p null \n");
-    }
     double *M = (double *) malloc(info.len_vb * 19 * sizeof(double));
-    if (M == NULL){
-        printf("M null \n");
-    }
     memcpy(M, A_value, info.len_vb * 19 * sizeof(double));
     //中间向量
     double *mid_result = (double *) malloc(info.len_vb * sizeof(double));
-    if (mid_result == NULL){
-        printf("mid_result null \n");
-    }
     double * recv_start;
-    double *M_diag = (double *) malloc(info.len_vb * sizeof(double));//store diagonal data A
     //init R
     //ssend and receive x
     send_data(x, info.nx, info.ny, info.nz, info.myrank);
@@ -749,7 +685,7 @@ void gcr(Data_Info info, int k){
     recv_data(recv_start, info.myrank);
     //waite recv done
     wait_recv(info.myrank);
-    check_x(0, info.len_vb, info.myrank, info);
+    check_x(info.len_vb);
 
     A_m_vector(x, info.len_vb, info.len_x, R); //ok
 
@@ -759,15 +695,9 @@ void gcr(Data_Info info, int k){
     }
     //check_R(info.len_vb, R);
     //init M
-    struct timeval t1, t2;
-    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t1, NULL);
-    ILU_0(M, info.len_vb, M_diag);
-    MPI_Barrier(MPI_COMM_WORLD), gettimeofday(&t2, NULL);
-    if (info.myrank == 0) {
-        printf("ILU get M: %.6lf\n", TIME(t1, t2));
-    }
+    ILU_0(M, info.len_vb);
     // get r hat
-    ilu_solver(R, M, R_hat, info.len_vb, M_diag);
+    ilu_solver(R, M, R_hat, info.len_vb);
 
     // init p_0
     memcpy(p, R_hat, info.len_vb * sizeof(double));
@@ -778,14 +708,14 @@ void gcr(Data_Info info, int k){
     wait_recv(info.myrank);
 
     A_m_vector(R_hat, info.len_vb, info.len_x, Ap);
-    printf("init Ap done\n");
+    //printf("init Ap done\n");
     int steps = 0; //迭代的次数
     //开始迭代
     double *Ap_i;
     double *p_i;
     double beta[10];// k最大为10
     double Ap_idot[10];// k最大为10
-    printf("begin to iterate\n");
+    //printf("begin to iterate\n");
     Ap_i = Ap + (steps % k) * info.len_vb;
     p_i = p + (steps % k) * info.len_vb;
     while(1){
@@ -808,7 +738,7 @@ void gcr(Data_Info info, int k){
         recv_data(recv_start, info.myrank);
         //waite recv done
         wait_recv(info.myrank);
-        int judge = check_x(0, info.len_vb, info.myrank, info);
+        int judge = check_x(info.len_vb);
         //printf("check x done\n");
         if (judge == 1){
             printf("step: %d, x get\n", steps);
@@ -822,7 +752,7 @@ void gcr(Data_Info info, int k){
         //开始更新R
         update_R(R, alpha, Ap_i, info.len_vb);
         //跟新 R_hat 不需要通讯
-        ilu_solver(R, M, R_hat, info.len_vb, M_diag);
+        ilu_solver(R, M, R_hat, info.len_vb);
         //R_hat = R;
         // 开始计算beta
         int sub_j;
@@ -881,7 +811,6 @@ void gcr(Data_Info info, int k){
     free(p);
     free(M);
     free(mid_result);
-    free(M_diag);
 }
 
 int main(int argc, char **argv) {
