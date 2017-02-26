@@ -8,7 +8,7 @@
 - [Pagerank Delta](#pr_ddf)  
 - [HyperAnf](#anf)
 
-### <a name="evr"></a> 实验环境
+### <a name="evr"></a> 实验环境 / Environment
 
 ###### CPU 信息
 
@@ -41,7 +41,7 @@
 
 ### <a name="pr_ddf"></a> Pagerank Delta
 
-#### 算法实现
+#### 算法实现 / Implementation
 
 pagerank delta 和 pagerank 算法类似，只不过每一次记录 pagerank 的更改量，因此在本次实验中，使用 `delta` 和 `new_delta`   两个数组来保存上一轮的改变以及这一轮的改变，使用 `pagerank` 数组来保存每一个节点的 `pagerank`。具体定义如下：
 
@@ -53,7 +53,7 @@ BigVector<float> new_delta(graph.path+"/new_delta_ddf", graph.vertices);
 
 更新过程主要包含两部分，首先是遍历边来实现对 `new_delta` 的更新；随后通过遍历点对 `pagerank` 进行更新。具体代码如下
 
-######遍历边
+######遍历边 Stream-Edge
 
 ```cpp
 graph.stream_edges<VertexId>(
@@ -70,7 +70,7 @@ graph.stream_edges<VertexId>(
 );
 ```
 
-######遍历点
+######遍历点 Stream-Vertice
 
 ```cpp
 graph.stream_vertices<VertexId>(
@@ -90,7 +90,7 @@ graph.stream_vertices<VertexId>(
 );
 ```
 
-#### 数据的初始化
+#### 数据的初始化 / Init
 
 初始时，认为每一个节点的 delta 是 1。因此每一个节点的初始 pagerank 是 `1 - DAMPING_FACTOR`。具体如下
 
@@ -113,7 +113,7 @@ graph.stream_vertices<VertexId>(
 );
 ```
 
-#### 性能测试
+#### 性能测试 / Experiments
 
 ######twitter-2010 (|V|=41652230) 迭代 10次
 
@@ -241,7 +241,7 @@ graph.stream_vertices<VertexId>(
 );
 ```
 
-#### 性能测试
+#### 性能测试 Experiments
 
 ######twitter-2010 (|V|=41652230) 迭代 10次
 

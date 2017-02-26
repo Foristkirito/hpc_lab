@@ -16,9 +16,8 @@ The official introduction of the class is below:
 ## <a name="lab1"></a>Lab1: Optimize Image Rotating
 `cpp`  
 
-In this lab, you are given a program showing moving and rotating image. Your task is to optimize the program to make it execute faster. [More Detail](https://github.com/Foristkirito/hpc_lab/tree/master/lab_1)
+In this lab, you are given a program showing moving and rotating image. Your task is to optimize the program to make it execute faster. [More Detail](https://github.com/Foristkirito/hpc_lab/tree/distributed/lab_1)
 
----
 
 ## <a name="lab2"></a>Lab2: Distributed Stencil Computing
 `cpp`  
@@ -43,7 +42,7 @@ In this lab, you have to implement two graph algorithm using [GridGraph ATC '15]
 - PageRank-Delta
 - [HyperANF](http://dl.acm.org/citation.cfm?id=1963493)
 
-[More detail]()
+[More detail](https://github.com/Foristkirito/hpc_lab/tree/distributed/lab_5)
 
 
 ## <a name="contact"></a> Contact
