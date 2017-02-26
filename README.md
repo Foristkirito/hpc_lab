@@ -8,9 +8,9 @@ The official introduction of the class is below:
 
 - [Lab1: Optimize Image Rotating](#lab1)
 - [Lab2: Distributed Stencil Computing](#lab2)
-- [lab3: Solve large - scale linear equations in parallel](#lab3)
-- [lab4: K-means on Spark](#lab4)
-- [lab5: Implement two Graph Algoritm on GridGraph](#lab4)
+- [Lab3: Solve large - scale linear equations in parallel](#lab3)
+- [Lab4: K-means on Spark](#lab4)
+- [Lab5: Implement two Graph Algoritm on GridGraph](#lab4)
 - [Contact](#contact)
 
 ## <a name="lab1"></a>Lab1: Optimize Image Rotating

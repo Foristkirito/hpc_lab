@@ -16,14 +16,13 @@ Lab1 requires the following to run:
 
 ## <a name="opt-methods"></a>Optimization methods
 
-> Because of lazy, I will use Chinese to describe this part as my lab report. English will be online soon.
 
-本节主要分四部分说明：
-- [实验环境](#envi)
-- [重复计算提出循环](#repeat_c)
-- [使用 sse2 向量化指令](#sse2)
-- [使用 openMP 对 for 循环进行并行计算](#openMP)
-- [总结](#sum)
+本节主要分四部分说明：  
+- [实验环境](#envi)  
+- [重复计算提出循环](#repeat_c)  
+- [使用 sse2 向量化指令](#sse2)  
+- [使用 openMP 对 for 循环进行并行计算](#openMP)  
+- [总结](#sum)  
 
 ### <a name="envi"></a>实验环境
 
@@ -196,9 +195,6 @@ for (int y=-height/2; y<height/2; y++)
 |sse2|2908021|
 |openMP|1703764|
 
-## <a name="contri"></a> Contributing
-
-I'm a newer master student. Any advice and suggestion are welcome!
 
 ## <a name="contact"></a> Contact
 
