@@ -27,7 +27,7 @@ In this lab, you have to implement the [stencil computing](https://en.wikipedia.
 ## <a name="lab3"></a>Lab3: Solve large - scale linear equations in parallel
 `cpp`  
 
-In this lab, you are ask to solve a linear equations. The equations are abstraction of three dimension features of the Earth about climate. The theory of problem solving is [here](http://www.netlib.org/templates/templates.pdf). Here uses the RGC algorithm and the preconditioner is ILU(0). [More detail](https://github.com/Foristkirito/hpc_lab/tree/distributed/lab_3)
+In this lab, you are ask to solve a linear equations. The equations are abstraction of three dimension features of the Earth about climate. The theory of problem solving is [here](http://www.netlib.org/templates/templates.pdf). Here uses the [GCR](https://en.wikipedia.org/wiki/Conjugate_residual_method) algorithm and the preconditioner is ILU(0). [More detail](https://github.com/Foristkirito/hpc_lab/tree/distributed/lab_3)
 
 ## <a name="lab4"></a>Lab4: K-means on Spark
 `Scala`

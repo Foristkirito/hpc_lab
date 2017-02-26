@@ -55,7 +55,7 @@ MPI_Request send_request[8]; // send requets
 int buffer_offset[8]; // the start index of par i to send
 int node_dsize[8]; // this node communicates with 8 nodes at most, this array save the date size to transfer
 int node_rank[8]; // save the node rank to communication
-int target_side[8]; // 初始化目标的index, 从接受者的角度来看
+int target_side[8]; // init index from the target vision
 // receive buffer is stored in R_hat
 
 int x_cor[19] = {0, -1, +1, 0, 0, +1, +1, -1, -1, 0, -1, +1, 0, 0, 0, -1, +1, 0, 0};
@@ -120,13 +120,13 @@ Data_Info init_info(int NX, int NY, int NZ, int PX, int PY, int PZ){
         }
         return info;
     } else {
-        // 首先切 Y 轴, naive
+        // partition y axis, simple
         int par_y_index = myrank / PX;
         int interval_y = NY / PY + 1;
         info.y_start = par_y_index * interval_y;
         info.y_end = min(NY, info.y_start + interval_y);
         info.ny = info.y_end - info.y_start;
-        // 切 X 轴, 比较繁琐
+        // partition x axis, complicated
         int par_x_index = myrank % PX;
         int bi_par_x = PX / 2;
         int bi_nx = NX / 2;
@@ -255,7 +255,7 @@ int get_col(int i, int j, int k, Data_Info info){
             g_i += (info.tX >> 1);
         }
     }
-    // x 循环回来
+    // x axis roll back
     g_i = (g_i + info.tX) % info.tX;
     if (g_i >= info.x_start && g_i < info.x_end && g_j >= info.y_start && g_j < info.y_end && g_k >= info.z_start && g_k < info.z_end){
         // the node is still in cube
@@ -302,7 +302,7 @@ int get_col(int i, int j, int k, Data_Info info){
                     if (i == info.nx){
                         return (size + info.nz * 3 + info.nz * info.ny + info.nz * info.nx + j * info.nz + k);
                     } else {
-                        //printf("error!!!!!!!!!!!!!!!!!!!!\n");
+                        // error occurred
                         return -1;
                     }
 
@@ -436,7 +436,7 @@ void A_m_vector(double * vector, int mrow, int mcol, double * result){
 }
 
 void ILU_0(double *M, int rows){
-    //只做方阵
+    //only for n * n
     double j_row_V[30];
     int j_row_col[30];
     int j_count;
@@ -477,7 +477,6 @@ void ILU_0(double *M, int rows){
             for(tmp_jpos = tmp_pos + 1; tmp_jpos < end_pos; tmp_jpos++){
                 int k = A_col[tmp_jpos];
                 if (k < rows && j_row_search < j_count){
-                    //只使用方阵
                     while(j_row_search < j_count){
                         if(k == j_row_col[j_row_search]){
                             double a_jk = j_row_V[j_row_search];
@@ -504,7 +503,7 @@ void ILU_0(double *M, int rows){
 
 void ilu_solver(double *R, double *M, double *R_hat, int rows){
     int i;
-    // 第一轮
+    // first turn
     for (i = 0; i < rows; i++){
         int start_j = A_ptr[i];
         int end_j = A_ptr[i + 1];
@@ -520,7 +519,7 @@ void ilu_solver(double *R, double *M, double *R_hat, int rows){
         }
         R_hat[i] = tmp;
     }
-    // 第二轮
+    // second turn
     for (i = rows - 1; i > -1; i--){
         int start_j = A_ptr[i];
         int end_j = A_ptr[i + 1];
@@ -579,7 +578,7 @@ void update_x(double *p_i, double alpha, int len){
 }
 
 int check_x(int rows){
-    //需要进行 局部通讯以及 allreduce
+    //need local communication
     int i, j;
     double sum = 0;
 
@@ -631,7 +630,7 @@ void send_data(double *vector, int nx, int ny, int nz, int myrank){
         #pragma omp for schedule(static)
         for (side = 0; side < 8; side++){
             if (myrank != node_rank[side]){
-                // 需要发送
+                // need to send message 
                 int count = 0;
                 double *start_index = send_buffer + buffer_offset[side];
                 for (i = start_x[side]; i < end_x[side]; i++){
@@ -662,7 +661,6 @@ void recv_data(double *vector, int myrank){
         if (node_rank[side] != myrank){
             double *receive_buffer = vector + buffer_offset[side];
             MPI_Irecv(receive_buffer, node_dsize[side], MPI_DOUBLE, node_rank[side], side, MPI_COMM_WORLD, &recv_request[side]);
-            //printf("recv ------- side : %d, node_dsize : %d, side : %d \n", side, node_dsize[side], side);
         }
     }
 }
@@ -685,7 +683,7 @@ void gcr(Data_Info info){
     double *p = (double *) malloc(k * info.len_vb * sizeof(double));
     double *M = (double *) malloc(info.len_vb * 19 * sizeof(double));
     memcpy(M, A_value, info.len_vb * 19 * sizeof(double));
-    //中间向量
+    //mid result
     double *mid_result = (double *) malloc(info.len_vb * sizeof(double));
     double * recv_start;
     //init R
@@ -717,18 +715,18 @@ void gcr(Data_Info info){
 
     A_m_vector(R_hat, info.len_vb, info.len_x, Ap);
     //printf("init Ap done\n");
-    int steps = 0; //迭代的次数
-    //开始迭代
+    int steps = 0; //numbers of iteration
+    //begin
     double *Ap_i;
     double *p_i;
-    double beta[10];// k最大为10
-    double Ap_idot[10];// k最大为10
+    double beta[10];// max k is 10
+    double Ap_idot[10];
     //printf("begin to iterate\n");
     Ap_i = Ap;
     p_i = p;
     while(1){
 
-        //计算alpha 需要allreduce, R 需要局部通讯-------------------------------
+        //calculate alpha, need to allreduce, R need locla communication
         double l_numerator = avx_dot(R, Ap_i, info.len_vb);
         double l_denominator = avx_dot(Ap_i, Ap_i, info.len_vb);
         double denominator;
@@ -737,16 +735,15 @@ void gcr(Data_Info info){
         MPI_Allreduce(&l_numerator, &numerator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
         Ap_idot[steps % k] = denominator;
         double alpha = numerator / denominator;
-        //开始更新 x, 不需要进行通讯
+        //update x, do not need communication
         update_x(p_i, alpha, info.len_vb);
-        //开始check需要进行通讯---------------------
+        //begin to check terminated condition
         send_data(x, info.nx, info.ny, info.nz, info.myrank);
         recv_start = x + info.len_vb;
         recv_data(recv_start, info.myrank);
         //waite recv done
         wait_recv(info.myrank);
         int judge = check_x(info.len_vb);
-        //printf("check x done\n");
         if (judge == 1){
             printf("step: %d, x get\n", steps);
             break;
@@ -756,14 +753,14 @@ void gcr(Data_Info info){
                 break;
             }
         }
-        //开始更新R
+        //update R matrix
         update_R(R, alpha, Ap_i, info.len_vb);
-        //跟新 R_hat 不需要通讯
+        //update R_hat
         ilu_solver(R, M, R_hat, info.len_vb);
         //R_hat = R;
-        // 开始计算beta
+        // calculate alpha
         int sub_j;
-        //计算 A * R_hat, 需要局部通讯到R_hat-----------------
+        //cal A * R_hat, 
         send_data(R_hat, info.nx, info.ny, info.nz, info.myrank);
         recv_start = R_hat + info.len_vb;
         recv_data(recv_start, info.myrank);
@@ -771,14 +768,14 @@ void gcr(Data_Info info){
         A_m_vector(R_hat, info.len_vb, info.len_x, mid_result);
 
         for (sub_j = (steps / k) * k; sub_j <= steps; sub_j++){
-            //计算分子的点积, 需要allreduce-------------------------
+            //cal vector dot
             double *Ap_j = Ap + (sub_j % k) * info.len_vb;
             l_numerator = avx_dot(mid_result, Ap_j, info.len_vb);
             MPI_Allreduce(&l_numerator, &numerator, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
             denominator = Ap_idot[sub_j % k];
             beta[sub_j % k] = -numerator / denominator;
         }
-        // 开始更新p_i
+        // update p_i
         steps++;
         p_i = p + (steps % k) * info.len_vb;
         int sub_i;
@@ -797,7 +794,7 @@ void gcr(Data_Info info){
 
 
         //printf("updtae p done\n");
-        //开始更新 Ap_i
+        //update Ap_i
         Ap_i = Ap + (steps % k) * info.len_vb;
         int last_step = steps - 1;
         for (sub_i = 0; sub_i < info.len_vb; sub_i++){
