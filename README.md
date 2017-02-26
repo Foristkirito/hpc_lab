@@ -16,7 +16,7 @@ The official introduction of the class is below:
 ## <a name="lab1"></a>Lab1: Optimize Image Rotating
 `cpp`  
 
-In this lab, you are given a program showing moving and rotating image. Your task is to optimize the program to make it execute faster. [More Detail](https://github.com/Foristkirito/hpc_lab/tree/master/lab1)
+In this lab, you are given a program showing moving and rotating image. Your task is to optimize the program to make it execute faster. [More Detail](https://github.com/Foristkirito/hpc_lab/tree/master/lab_1)
 
 ---
 
